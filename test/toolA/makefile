@@ -1,0 +1,31 @@
+ifndef toolA.included
+toolA.included:=1
+
+PREFIX?=../..
+include $(PREFIX)/scripts/make-fw.mk
+
+
+toolA.TARGET := $(OUT)/bin/toolA
+toolA.SRCS   := test.c
+toolA.OBJS   := $(patsubst %.c,$(OUT)/obj/toolA/%.o,$(toolA.SRCS))
+toolA.DEPS   := $(patsubst %.c,$(OUT)/dep/toolA/%.d,$(toolA.SRCS))
+
+ifndef all.defined
+all: $(toolA.OBJS)
+endif
+
+.PHONY: toolA
+toolA:$(toolA.TARGET)
+$(toolA.TARGET): $(toolA.OBJS)
+-include $(toolA.DEPS)
+
+#(eval $(call add_ar_dep,$(toolA.TARGET),libA))
+include $(PREFIX)/test/libA/makefile
+$(toolA.TARGET): LDFLAGS+=$(libA.EXT_DEPS)
+$(toolA.TARGET): $(libA.TARGET)
+
+include $(PREFIX)/test/libB/makefile
+$(toolA.TARGET): LDFLAGS+=$(libB.EXT_DEPS)
+$(toolA.TARGET): $(libB.TARGET)
+
+endif
