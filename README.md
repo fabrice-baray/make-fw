@@ -23,7 +23,9 @@ useful. I tried to respect the following principles:
 - auto generation of include dependencies
   (http://make.mad-scientist.net/papers/advanced-auto-dependency-generation)
 
-- for simplicity, avoid as much as possible the user of $(eval ...) function
+- for simplicity, avoid as much as possible the use of $(eval ...) function
+
+- ...
 
 
 Other references:
