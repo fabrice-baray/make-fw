@@ -1,13 +1,12 @@
-# make-fw
-Makefile framework
+# make-fw - a simple Makefile framework
 
 make-fw aims to provide a simple framework to use makefile for project
 compilations. Even though makefiles are an old way to handle project
-compilations, it is very stable, has most of the needed feature, is largely
+compilations, it is very stable, has most of the needed features, is largely
 known by developers and so is still a very reliable tool to be
-considered. However to avoid some pitfalls, complicated syntax and some
-nightmares, I felt that developing a framework could be useful. I tried to
-respect the following principles:
+considered. However to avoid some pitfalls, complicated syntaxes and recurring
+nightmares, I felt that having a guiding framework could actually be something
+useful. I tried to respect the following principles:
 
 - do not use recursive make invocations, instead a single invocation of make
   should construct the whole dependency tree (following the idea presented by
