@@ -1,22 +1,22 @@
-ifndef libA.included
-libA.included:=1
+ifndef libA_included
+libA_included:=1
 
 ROOT?=..
 include $(ROOT)/../scripts/make-fw.mk
 
 
-libA.TARGET   := $(OUT)/lib/libA.a
-libA.SRCS     := libA.c
-libA.OBJS     := $(call make-fw.objects,libA,$(libA.SRCS))
-libA.DEPS     := $(call make-fw.deps,libA,$(LIBA.SRCS))
-libA.LDFLAGS := -lm
+libA_TARGET   := $(OUT)/lib/libA.a
+libA_SRCS     := libA.c
+libA_OBJS     := $(call mfwOBJECTS,libA,$(libA_SRCS))
+libA_DEPS     := $(call mfwDEPS,libA,$(LIBA_SRCS))
+libA_LDFLAGS := -lm
 
 ifndef all.defined
-all: $(libA.TARGET)
+all: $(libA_TARGET)
 endif
 
-$(libA.TARGET): $(libA.OBJS)
-$(libA.OBJS): CFLAGS+=-DLIBA
--include $(libA.DEPS)
+$(libA_TARGET): $(libA_OBJS)
+$(libA_OBJS): CFLAGS+=-DLIBA
+-include $(libA_DEPS)
 
 endif

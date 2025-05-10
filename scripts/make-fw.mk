@@ -4,29 +4,29 @@
 #
 
 
-ifndef make-fw.included
-make-fw.included:=1
+ifndef mfwIncluded
+mfwIncluded:=1
 
 # --------------------------------------------------------------------------------
 # default settings
 
 # build folder relative path to ROOT
-make-fw.BUILD_FOLDER?=../_build
+mfwBUILD_FOLDER?=../_build
 
-make-fw.LIB?=lib
-make-fw.OBJ?=obj
-make-fw.BIN?=bin
-make-fw.DEP?=dep
+mfwLIB?=lib
+mfwOBJ?=obj
+mfwBIN?=bin
+mfwDEP?=dep
 
 # MODE of compilation, dbg, opt, ...
-make-fw.dbgMODE?=dbg
-make-fw.optMODE?=opt
-make-fw.MODE?=$(make-fw.optMODE)
+mfwdbgMODE?=dbg
+mfwoptMODE?=opt
+mfwMODE?=$(mfwoptMODE)
 
 # default compilation flag
-make-fw.default.CFLAGS?=-Wall
-make-fw.default.dbgCFLAGS?=-g
-make-fw.default.optCFLAGS?=-O3 -DNDEBUG
+mfwdefault_CFLAGS?=-Wall
+mfwdefault_dbgCFLAGS?=-g
+mfwdefault_optCFLAGS?=-O3 -DNDEBUG
 
 # --------------------------------------------------------------------------------
 # GLOBAL variables to be used in src makefiles
@@ -35,8 +35,8 @@ make-fw.default.optCFLAGS?=-O3 -DNDEBUG
 ROOT?=.
 
 # OUT is the relative path to the output folder
-make-fw.OBASE:=$(ROOT)/$(make-fw.BUILD_FOLDER)
-OUT:=$(make-fw.OBASE)/$(make-fw.MODE)
+mfwOBASE:=$(ROOT)/$(mfwBUILD_FOLDER)
+OUT:=$(mfwOBASE)/$(mfwMODE)
 
 
 # --------------------------------------------------------------------------------
@@ -55,14 +55,14 @@ OUT:=$(make-fw.OBASE)/$(make-fw.MODE)
 #   abruptly, or bad timestamp. In any case we do not return error if mv or touch
 #   fails, the worst case dependency is missing and will be re-generated the next
 #   compilation.
-DEPFLAGS = -MT $@ -MMD -MP -MF $(OUT)/$(make-fw.DEP)/$*.Td
-POSTCOMPILE = mv -f $(OUT)/$(make-fw.DEP)/$*.Td $(OUT)/$(make-fw.DEP)/$*.d && touch $@ | true
+mfwDEPFLAGS = -MT $@ -MMD -MP -MF $(OUT)/$(mfwDEP)/$*.Td
+mfwPOSTCOMPILE = mv -f $(OUT)/$(mfwDEP)/$*.Td $(OUT)/$(mfwDEP)/$*.d && touch $@ | true
 
 # .o target will be dependent of the dependencies file in case this last one is
 # deleted. Then an empty fake rule is added for it to avoid a "no rule to make
 # target"
-$(OUT)/$(make-fw.DEP)/%.d: ;
-.PRECIOUS: $(OUT)/$(make-fw.DEP)/%.d
+$(OUT)/$(mfwDEP)/%.d: ;
+.PRECIOUS: $(OUT)/$(mfwDEP)/%.d
 
 
 # --------------------------------------------------------------------------------
@@ -70,12 +70,12 @@ $(OUT)/$(make-fw.DEP)/%.d: ;
 
 #$(VERBOSE).SILENT:
 
-CFLAGS+=$(make-fw.default.CFLAGS)
-$(make-fw.OBASE)/$(make-fw.dbgMODE)/$(make-fw.OBJ)/%: CFLAGS+=$(make-fw.default.dbgCFLAGS)
-$(make-fw.OBASE)/$(make-fw.optMODE)/$(make-fw.OBJ)/%: CFLAGS+=$(make-fw.default.optCFLAGS)
+CFLAGS+=$(mfwdefault_CFLAGS)
+$(mfwOBASE)/$(mfwdbgMODE)/$(mfwOBJ)/%: CFLAGS+=$(mfwdefault_dbgCFLAGS)
+$(mfwOBASE)/$(mfwoptMODE)/$(mfwOBJ)/%: CFLAGS+=$(mfwdefault_optCFLAGS)
 
-$(make-fw.OBASE)/$(make-fw.dbgMODE)/$(make-fw.BIN)/%: LDFLAGS+=-L $(make-fw.OBASE)/$(make-fw.dbgMODE)/$(make-fw.LIB) -Xlinker -R -Xlinker ../$(make-fw.LIB)
-$(make-fw.OBASE)/$(make-fw.optMODE)/$(make-fw.BIN)/%: LDFLAGS+=-L $(make-fw.OBASE)/$(make-fw.optMODE)/$(make-fw.LIB) -Xlinker -R -Xlinker ../$(make-fw.LIB)
+$(mfwOBASE)/$(mfwdbgMODE)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwdbgMODE)/$(mfwLIB) -Xlinker -R -Xlinker ../$(mfwLIB)
+$(mfwOBASE)/$(mfwoptMODE)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwoptMODE)/$(mfwLIB) -Xlinker -R -Xlinker ../$(mfwLIB)
 
 
 # --------------------------------------------------------------------------------
@@ -85,26 +85,26 @@ $(make-fw.OBASE)/$(make-fw.optMODE)/$(make-fw.BIN)/%: LDFLAGS+=-L $(make-fw.OBAS
 .PHONY: clean
 
 # order dependencies are obj and dep folders
-$(OUT)/$(make-fw.OBJ)/%.o: $(ROOT)/%.c $(OUT)/$(make-fw.DEP)/%.d | $$(@D)/.folder $(OUT)/$(make-fw.DEP)/$$(dir $$(*)).folder
-	$(COMPILE.c) $< $(DEPFLAGS) -o $@ ; $(POSTCOMPILE)
+$(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.c $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
+	$(COMPILE.c) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
 
-$(OUT)/$(make-fw.LIB)/%.so: | $(OUT)/.folders
+$(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -shared -o $@ $<
 
-$(OUT)/$(make-fw.LIB)/%.a: | $(OUT)/.folders
+$(OUT)/$(mfwLIB)/%.a: | $(OUT)/.folders
 	$(AR) $(ARFLAGS) $@ $^
 
-$(OUT)/$(make-fw.BIN)/%: | $(OUT)/.folders
+$(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 	$(LINK.s) $(filter-out %.so,$^)  $(LDLIBS) -o $@
 
 all:
 clean:
-	rm -fr $(make-fw.OBASE)
+	rm -fr $(mfwOBASE)
 
 
 # rules to create output folders
 $(OUT)/.folders:
-	mkdir -p $(OUT)/$(make-fw.BIN) $(OUT)/$(make-fw.LIB) $(OUT)/$(make-fw.DEP)
+	mkdir -p $(OUT)/$(mfwBIN) $(OUT)/$(mfwLIB) $(OUT)/$(mfwDEP)
 	touch $@
 
 %/.folder: 
@@ -115,10 +115,10 @@ $(OUT)/.folders:
 # --------------------------------------------------------------------------------
 # function helpers
 
-# construct the list of object/dependency files: $(make-fw.{objects|deps} folder, list of src files)
-# eg. $(make-fw.objects libX, file.c)
-make-fw.objects=$(patsubst %.c,$(OUT)/$(make-fw.OBJ)/$(1)/%.o,$(2))
-make-fw.deps=$(patsubst %.c,$(OUT)/$(make-fw.DEP)/$(1)/%.d,$(2))
+# construct the list of object/dependency files: $(mfw{OBJECTS|DEPS} folder, list of src files)
+# eg. $(mfwOBJECTS libX, file.c)
+mfwOBJECTS=$(patsubst %.c,$(OUT)/$(mfwOBJ)/$(1)/%.o,$(2))
+mfwDEPS=$(patsubst %.c,$(OUT)/$(mfwDEP)/$(1)/%.d,$(2))
 
 
 else

@@ -5,28 +5,29 @@ ROOT?=..
 include $(ROOT)/../scripts/make-fw.mk
 
 
-toolA.TARGET := $(OUT)/bin/toolA
-toolA.SRCS   := test.c
-toolA.OBJS   := $(patsubst %.c,$(OUT)/obj/toolA/%.o,$(toolA.SRCS))
-toolA.DEPS   := $(patsubst %.c,$(OUT)/dep/toolA/%.d,$(toolA.SRCS))
+toolA_TARGET := $(OUT)/bin/toolA
+toolA_SRCS   := test.c
+toolA_OBJS   := $(call mfwOBJECTS,toolA,$(toolA_SRCS))
+toolA_DEPS   := $(call mfwDEPS,toolA,$(toolA_SRCS))
 
 ifndef all.defined
-all: $(toolA.OBJS)
+all: $(toolA_OBJS)
 endif
 
 .PHONY: toolA
-toolA:$(toolA.TARGET)
-$(toolA.TARGET): $(toolA.OBJS)
--include $(toolA.DEPS)
+toolA:$(toolA_TARGET)
+$(toolA_TARGET): $(toolA_OBJS)
+-include $(toolA_DEPS)
 
-#(eval $(call add_ar_dep,$(toolA.TARGET),libA))
+# dependent on libA
 include $(ROOT)/libA/makefile
-$(toolA.TARGET): LDFLAGS+=$(libA.LDFLAGS)
-$(toolA.TARGET): $(libA.TARGET)
+$(toolA_TARGET): LDFLAGS+=$(libA_LDFLAGS)
+$(toolA_TARGET): $(libA_TARGET)
 
+# dependent on libB
 include $(ROOT)/libB/makefile
-$(toolA.TARGET): $(libB.TARGET)
-$(toolA.TARGET): LDFLAGS+=$(libB.LDFLAGS)
-$(toolA.TARGET): LDLIBS+=-lB
+$(toolA_TARGET): $(libB_TARGET)
+$(toolA_TARGET): LDFLAGS+=$(libB_LDFLAGS)
+$(toolA_TARGET): LDLIBS+=-lB
 
 endif
