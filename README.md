@@ -97,9 +97,9 @@ base_folder
 		
 **4. use of variables**
 
-	      libA_SRCS := libA.c
-		  libA_OBJS:= $(call mfwOBJECTS,libA,$(libA_SRCS))
-		  -include $(call mfwDEPS,libA,$(libA_SRCS))
+        libA_SRCS := libA.c
+        libA_OBJS:= $(call mfwOBJECTS,libA,$(libA_SRCS))
+        -include $(call mfwDEPS,libA,$(libA_SRCS))
 
   - any variable defined **should be uniquely prefixed** to avoid any clash with variables of other makefiles
   - function *mfwOBJECTS path files* helps building list of output files
