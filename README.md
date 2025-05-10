@@ -136,23 +136,23 @@ base_folder
 You can change several default settings by assigning those variables before
 including make-fw.mk:
 
-- output build folder pathname: mfwBUILD_FOLDER
-  defaults to ../_build
+- output build folder pathname: **mfwBUILD_FOLDER**  
+  defaults to **../_build**
   
-- output folder names: mfwOBJ, mfwDEP, mfwLIB, mfwBIN
-  defaults to obj, dep, lib, bin
+- output folder names: **mfwOBJ**, **mfwDEP**, **mfwLIB**, **mfwBIN**  
+  defaults to **obj**, **dep**, **lib**, **bin**
   
-- mode names: mfwDBG, mfwOPT
-  defaults to dbg, opt
+- mode names: **mfwDBG**, **mfwOPT**  
+  defaults to **dbg**, **opt**
   
-- default selected mode: mfwMODE
-  defaults to $(mfwOPT)
+- default selected mode: **mfwMODE**__
+  defaults to **$(mfwOPT)**
   
-- default CFLAGS: mfwCFLAGS
-  defaults to -Wall
+- default CFLAGS: **mfwCFLAGS**  
+  defaults to **-Wall**
   
-- default CFLAGS per mode: mfw<mode>CFLAGS
+- default CFLAGS per mode: **mfw<mode>CFLAGS**  
   defaults to:
-  - dbg mode: -g
-  - opt mode: -O3 -DNDEBUG
+  - dbg mode: **-g**
+  - opt mode: **-O3 -DNDEBUG**
 
