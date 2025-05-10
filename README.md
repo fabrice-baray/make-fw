@@ -65,9 +65,12 @@ base_folder
            └── toolA
 ```
 
+- make-fw file can be install in base_folder or base_folder/externals as an external dependency
+- <mode> corresponds to compilation modes, optimized (opt), debug (dbg), asan (asan),...
+
 ## Rules to write makefiles
 
-### prevent double inclusion
+. prevent double inclusion
 ```md
 ifndef file_is_included
 file_is_included:=1
@@ -75,7 +78,7 @@ file_is_included:=1
 endif
 ```
 
-### define ROOT and include make-fw.mk from that reference
+. define ROOT and include make-fw.mk from that reference
 - ROOT is the relative path to the root of the source tree (src folder in the tree example).
 - OUT variable pointing to the output build folder is defined by make-fw (_build folder in the tree example).
 
@@ -84,9 +87,21 @@ ROOT?=..
 include $(ROOT)/../scripts/make-fw.mk
 ```
 
-### define your own dependency rules
+. define your own dependency rules
 
 - create a static library with some object files:
 ```md
 $(OUT)/lib/libA.a: $(OUT)/obj/libA/file.o
+```
+
+- create a binary linking some object files
+```md
+$(OUT)/bin/tool: $(OUT)/obj/tool/file.o
+```
+
+- add a dependency between a tool and a static library:
+```md
+include $(ROOT)/lib/makefile
+$(OUT)/bin/tool: LDFLAGS+=$(OUT)/lib/lib.a
+$(OUT)/bin/tool: $(OUT)/lib/lib.a
 ```
