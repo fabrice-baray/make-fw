@@ -70,7 +70,7 @@ base_folder
 
 ## Rules to write makefiles
 
-. prevent double inclusion
+1. prevent double inclusion
 ```md
 ifndef file_is_included
 file_is_included:=1
@@ -78,16 +78,17 @@ file_is_included:=1
 endif
 ```
 
-. define ROOT and include make-fw.mk from that reference
+2. define ROOT and include make-fw.mk from that reference
 - ROOT is the relative path to the root of the source tree (src folder in the tree example).
 - OUT variable pointing to the output build folder is defined by make-fw (_build folder in the tree example).
+- you can include your own .mk file defining new implicit rules
 
 ```md
 ROOT?=..
 include $(ROOT)/../scripts/make-fw.mk
 ```
 
-. define your own dependency rules
+3. define your own dependency rules:
 
 - create a static library with some object files:
 ```md
