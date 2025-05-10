@@ -12,11 +12,11 @@ make-fw.included:=1
 
 # --------------------------------------------------------------------------------
 # output location
-PREFIX?=.
-BUILD_FOLDER?=_build
+ROOT?=.
+BUILD_FOLDER?=../_build
 MODE?=opt
 
-OBASE:=$(PREFIX)/$(BUILD_FOLDER)
+OBASE:=$(ROOT)/$(BUILD_FOLDER)
 OUT:=$(OBASE)/$(MODE)
 
 # --------------------------------------------------------------------------------
@@ -57,7 +57,7 @@ $(OUT)/dep/%.d: ;
 .PHONY: clean
 
 # order dependencies are obj and dep folders
-$(OUT)/obj/%.o: $(PREFIX)/test/%.c $(OUT)/dep/%.d | $$(@D)/.folder $(OUT)/dep/$$(dir $$(*)).folder
+$(OUT)/obj/%.o: $(ROOT)/%.c $(OUT)/dep/%.d | $$(@D)/.folder $(OUT)/dep/$$(dir $$(*)).folder
 	$(COMPILE.c) $< $(DEPFLAGS) -o $@ ; $(POSTCOMPILE)
 
 
@@ -92,7 +92,7 @@ $(OUT)/.folders:
 ##   <target>_TARGET contains the name of the target
 ##   <target>_EXT_DEPS will contain external dependencies needed to link
 #define add_ar_dep=
-#include $(PREFIX)/$(2)/makefile
+#include $(ROOT)/$(2)/makefile
 #$(1): LDFLAGS+=$($(2).EXT_DEPS)
 #$(1): $($(2).TARGET)
 #endef

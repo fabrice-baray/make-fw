@@ -1,8 +1,8 @@
 ifndef libA.included
 libA.included:=1
 
-PREFIX?=../..
-include $(PREFIX)/scripts/make-fw.mk
+ROOT?=..
+include $(ROOT)/../scripts/make-fw.mk
 
 
 libA.TARGET   := $(OUT)/lib/libA.a

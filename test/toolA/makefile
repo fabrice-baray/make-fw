@@ -1,8 +1,8 @@
 ifndef toolA.included
 toolA.included:=1
 
-PREFIX?=../..
-include $(PREFIX)/scripts/make-fw.mk
+ROOT?=..
+include $(ROOT)/../scripts/make-fw.mk
 
 
 toolA.TARGET := $(OUT)/bin/toolA
@@ -20,11 +20,11 @@ $(toolA.TARGET): $(toolA.OBJS)
 -include $(toolA.DEPS)
 
 #(eval $(call add_ar_dep,$(toolA.TARGET),libA))
-include $(PREFIX)/test/libA/makefile
+include $(ROOT)/libA/makefile
 $(toolA.TARGET): LDFLAGS+=$(libA.EXT_DEPS)
 $(toolA.TARGET): $(libA.TARGET)
 
-include $(PREFIX)/test/libB/makefile
+include $(ROOT)/libB/makefile
 $(toolA.TARGET): LDFLAGS+=$(libB.EXT_DEPS)
 $(toolA.TARGET): $(libB.TARGET)
 
