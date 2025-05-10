@@ -83,12 +83,13 @@ base_folder
 
 
 **2. define ROOT and include make-fw.mk from that reference**
-  - ROOT is the relative path to the root of the source tree (src folder in the tree example).
-  - OUT variable pointing to the output build folder is defined by make-fw (_build folder in the tree example).
-  - you can include your own .mk file defining new implicit rules
 
         ROOT?=..
         include $(ROOT)/../make-fw.mk
+
+  - ROOT is the relative path to the root of the source tree (src folder in the tree example).
+  - OUT variable pointing to the output build folder is defined by make-fw (_build folder in the tree example).
+  - you can include your own .mk file defining new implicit rules
 
 **3. always include generated dependency files**
 
@@ -96,19 +97,16 @@ base_folder
 		
 **4. use of variables**
 
-  - any variable defined **should be uniquely prefixed** to avoid any clash with variables of other makefiles
-
 	      libA_SRCS := libA.c
-
-  - function *mfwOBJECTS path files* helps building list of output files
-  
 		  libA_OBJS:= $(call mfwOBJECTS,libA,$(libA_SRCS))
-		  
+		  -include $(call mfwDEPS,libA,$(libA_SRCS))
+
+  - any variable defined **should be uniquely prefixed** to avoid any clash with variables of other makefiles
+  - function *mfwOBJECTS path files* helps building list of output files
   - function *mfwDEPS path, files* helps building list of dependency files to include
   
-		  -include $(call mfwDEPS,libA,$(libA_SRCS))
 		  		
-**4. define your own dependencies with:**
+**4. define your own dependencies:**
 
   - create a static library with some object files:
 
