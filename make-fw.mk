@@ -25,9 +25,13 @@ mfwDBG?=dbg
 mfwOPT?=opt
 
 # default compilation flag
-mfwCFLAGS?=-Wall
+mfwCFLAGS?=-Wall -I$(ROOT)
 mfw$(mfwDBG)CFLAGS?=-g
 mfx$(mfwOPT)CFLAGS?=-O3 -DNDEBUG
+
+mfwCXXFLAGS?=-Wall -I$(ROOT)
+mfw$(mfwDBG)CXXFLAGS?=-g
+mfx$(mfwOPT)CXXFLAGS?=-O3 -DNDEBUG
 
 # --------------------------------------------------------------------------------
 # GLOBAL variables to be used in src makefiles
@@ -57,7 +61,7 @@ OUT:=$(mfwOBASE)/$(MODE)
 #   fails, the worst case dependency is missing and will be re-generated the next
 #   compilation.
 mfwDEPFLAGS = -MT $@ -MMD -MP -MF $(OUT)/$(mfwDEP)/$*.Td
-mfwPOSTCOMPILE = mv -f $(OUT)/$(mfwDEP)/$*.Td $(OUT)/$(mfwDEP)/$*.d && touch $@ | true
+mfwPOSTCOMPILE = mv -f $(OUT)/$(mfwDEP)/$*.Td $(OUT)/$(mfwDEP)/$*.d && touch -c $@ | true
 
 # .o target will be dependent of the dependencies file in case this last one is
 # deleted. Then an empty fake rule is added for it to avoid a "no rule to make
@@ -75,8 +79,12 @@ CFLAGS+=$(mfwCFLAGS)
 $(mfwOBASE)/$(mfwDBG)/$(mfwOBJ)/%: CFLAGS+=$(mfw$(mfwDBG)CFLAGS)
 $(mfwOBASE)/$(mfwOPT)/$(mfwOBJ)/%: CFLAGS+=$(mfx$(mfwOPT)CFLAGS)
 
-$(mfwOBASE)/$(mfwDBG)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwDBG)/$(mfwLIB) -Xlinker -R -Xlinker ../$(mfwLIB)
-$(mfwOBASE)/$(mfwOPT)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwOPT)/$(mfwLIB) -Xlinker -R -Xlinker ../$(mfwLIB)
+CXXFLAGS+=$(mfwCXXFLAGS)
+$(mfwOBASE)/$(mfwDBG)/$(mfwOBJ)/%: CXXFLAGS+=$(mfw$(mfwDBG)CXXFLAGS)
+$(mfwOBASE)/$(mfwOPT)/$(mfwOBJ)/%: CXXFLAGS+=$(mfx$(mfwOPT)CXXFLAGS)
+
+$(mfwOBASE)/$(mfwDBG)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwDBG)/$(mfwLIB) -Xlinker -R -Xlinker '$$ORIGIN'/../$(mfwLIB)
+$(mfwOBASE)/$(mfwOPT)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwOPT)/$(mfwLIB) -Xlinker -R -Xlinker '$$ORIGIN'/../$(mfwLIB)
 
 
 # --------------------------------------------------------------------------------
@@ -89,6 +97,9 @@ $(mfwOBASE)/$(mfwOPT)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwOPT)/$(mfwLIB) -
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.c $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
 	$(COMPILE.c) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
 
+$(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cc $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
+	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
+
 $(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -shared -o $@ $<
 
@@ -96,7 +107,7 @@ $(OUT)/$(mfwLIB)/%.a: | $(OUT)/.folders
 	$(AR) $(ARFLAGS) $@ $^
 
 $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
-	$(LINK.s) $(filter-out %.so,$^)  $(LDLIBS) -o $@
+	$(LINK.cc) $(filter-out %.so,$^) $(LDLIBS) -o $@
 
 all:
 clean:
@@ -118,8 +129,8 @@ $(OUT)/.folders:
 
 # construct the list of object/dependency files: $(mfw{OBJECTS|DEPS} folder, list of src files)
 # eg. $(mfwOBJECTS libX, file.c)
-mfwOBJECTS=$(patsubst %.c,$(OUT)/$(mfwOBJ)/$(1)/%.o,$(2))
-mfwDEPS=$(patsubst %.c,$(OUT)/$(mfwDEP)/$(1)/%.d,$(2))
+mfwOBJECTS=$(patsubst %.c,$(OUT)/$(mfwOBJ)/$(1)/%.o,$(filter %.c,$(2))) $(patsubst %.cc,$(OUT)/$(mfwOBJ)/$(1)/%.o,$(filter %.cc,$(2)))
+mfwDEPS=$(patsubst %.c,$(OUT)/$(mfwDEP)/$(1)/%.d,$(filter %.c,$(2))) $(patsubst %.cc,$(OUT)/$(mfwDEP)/$(1)/%.d,$(filter %.cc,$(2)))
 
 
 else

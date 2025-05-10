@@ -150,7 +150,10 @@ including make-fw.mk:
   defaults to **$(mfwOPT)**
   
 - default CFLAGS: **mfwCFLAGS**  
-  defaults to **-Wall**
+  defaults to **-Wall -I$(ROOT)**
+
+- default CXXFLAGS: **mfwCXXFLAGS**  
+  defaults to **-Wall -I$(ROOT)**
   
 - default CFLAGS per mode: **mfw\<mode\>CFLAGS**  
   defaults to:

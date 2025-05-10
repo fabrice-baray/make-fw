@@ -6,7 +6,7 @@ include $(ROOT)/../make-fw.mk
 
 
 toolA_TARGET := $(OUT)/bin/toolA
-toolA_SRCS   := test.c
+toolA_SRCS   := test.cc
 toolA_OBJS   := $(call mfwOBJECTS,toolA,$(toolA_SRCS))
 toolA_DEPS   := $(call mfwDEPS,toolA,$(toolA_SRCS))
 

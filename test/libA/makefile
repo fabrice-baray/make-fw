@@ -21,4 +21,7 @@ $(libA_OBJS): CFLAGS+=-DLIBA
 # include generated dependency files for the needed source files
 -include $(call mfwDEPS,libA,$(LIBA_SRCS))
 
+# include sub folders
+include $(ROOT)/libA/subFolder/makefile
+
 endif
