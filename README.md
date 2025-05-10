@@ -126,3 +126,33 @@ base_folder
 		$(OUT)/bin/tool: LDLIBS+=-lX
 		
 		
+## Makefile usage
+
+- compilation can be invoked just by calling ``make`` in any folder
+- compilation with a different mode: ``make MODE=dbg``
+
+## Makefile configuration defaults
+
+You can change several default settings by assigning those variables before
+including make-fw.mk:
+
+- output build folder pathname: mfwBUILD_FOLDER
+  defaults to ../_build
+  
+- output folder names: mfwOBJ, mfwDEP, mfwLIB, mfwBIN
+  defaults to obj, dep, lib, bin
+  
+- mode names: mfwDBG, mfwOPT
+  defaults to dbg, opt
+  
+- default selected mode: mfwMODE
+  defaults to $(mfwOPT)
+  
+- default CFLAGS: mfwCFLAGS
+  defaults to -Wall
+  
+- default CFLAGS per mode: mfw<mode>CFLAGS
+  defaults to:
+  - dbg mode: -g
+  - opt mode: -O3 -DNDEBUG
+

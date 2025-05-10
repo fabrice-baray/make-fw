@@ -19,14 +19,15 @@ mfwBIN?=bin
 mfwDEP?=dep
 
 # MODE of compilation, dbg, opt, ...
-mfwdbgMODE?=dbg
-mfwoptMODE?=opt
-mfwMODE?=$(mfwoptMODE)
+MODE?=$(mfwMODE)
+mfwMODE?=$(mfwOPT)
+mfwDBG?=dbg
+mfwOPT?=opt
 
 # default compilation flag
-mfwdefault_CFLAGS?=-Wall
-mfwdefault_dbgCFLAGS?=-g
-mfwdefault_optCFLAGS?=-O3 -DNDEBUG
+mfwCFLAGS?=-Wall
+mfw$(mfwDBG)CFLAGS?=-g
+mfx$(mfwOPT)CFLAGS?=-O3 -DNDEBUG
 
 # --------------------------------------------------------------------------------
 # GLOBAL variables to be used in src makefiles
@@ -36,7 +37,7 @@ ROOT?=.
 
 # OUT is the relative path to the output folder
 mfwOBASE:=$(ROOT)/$(mfwBUILD_FOLDER)
-OUT:=$(mfwOBASE)/$(mfwMODE)
+OUT:=$(mfwOBASE)/$(MODE)
 
 
 # --------------------------------------------------------------------------------
@@ -70,12 +71,12 @@ $(OUT)/$(mfwDEP)/%.d: ;
 
 #$(VERBOSE).SILENT:
 
-CFLAGS+=$(mfwdefault_CFLAGS)
-$(mfwOBASE)/$(mfwdbgMODE)/$(mfwOBJ)/%: CFLAGS+=$(mfwdefault_dbgCFLAGS)
-$(mfwOBASE)/$(mfwoptMODE)/$(mfwOBJ)/%: CFLAGS+=$(mfwdefault_optCFLAGS)
+CFLAGS+=$(mfwCFLAGS)
+$(mfwOBASE)/$(mfwDBG)/$(mfwOBJ)/%: CFLAGS+=$(mfw$(mfwDBG)CFLAGS)
+$(mfwOBASE)/$(mfwOPT)/$(mfwOBJ)/%: CFLAGS+=$(mfx$(mfwOPT)CFLAGS)
 
-$(mfwOBASE)/$(mfwdbgMODE)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwdbgMODE)/$(mfwLIB) -Xlinker -R -Xlinker ../$(mfwLIB)
-$(mfwOBASE)/$(mfwoptMODE)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwoptMODE)/$(mfwLIB) -Xlinker -R -Xlinker ../$(mfwLIB)
+$(mfwOBASE)/$(mfwDBG)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwDBG)/$(mfwLIB) -Xlinker -R -Xlinker ../$(mfwLIB)
+$(mfwOBASE)/$(mfwOPT)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwOPT)/$(mfwLIB) -Xlinker -R -Xlinker ../$(mfwLIB)
 
 
 # --------------------------------------------------------------------------------
