@@ -67,9 +67,10 @@ base_folder
            └── toolA
 ```
 
-- make-fw file can be install in base_folder or base_folder/externals as an external dependency
+- make-fw file can be installed in *base_folder* or *base_folder/externals* as an external dependency
 - \<mode\> corresponds to compilation modes, optimized (opt), debug (dbg), asan (asan),...
-- test folder can be used as an example of make-fw usage
+- in make-fw git, *test* folder can be used as an example of make-fw usage but is not required to use make-fw on your project
+
 
 ## Rules to write makefiles
 
