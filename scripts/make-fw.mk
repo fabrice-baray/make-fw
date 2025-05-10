@@ -1,35 +1,47 @@
 # --------------------------------------------------------------------------------
-# 
+# make-fw: makefile frameworks for c/c++ projects
+# https://github.com/fabrice-baray/make-fw
+#
 
-# References:
-#   https://www.gnu.org/software/make/manual/html_node/index.html
-#   http://make.mad-scientist.net/papers/multi-architecture-builds
-#   http://make.mad-scientist.net/papers/advanced-auto-dependency-generation
-#   paper: Recursive Make Considered Harmful (Peter Miller)
 
 ifndef make-fw.included
 make-fw.included:=1
 
 # --------------------------------------------------------------------------------
-# output location
-ROOT?=.
-BUILD_FOLDER?=../_build
-MODE?=opt
+# default settings
 
-OBASE:=$(ROOT)/$(BUILD_FOLDER)
-OUT:=$(OBASE)/$(MODE)
+# build folder relative path to ROOT
+make-fw.BUILD_FOLDER?=../_build
+
+make-fw.LIB?=lib
+make-fw.OBJ?=obj
+make-fw.BIN?=bin
+make-fw.DEP?=dep
+
+# MODE of compilation, dbg, opt, ...
+make-fw.dbgMODE?=dbg
+make-fw.optMODE?=opt
+make-fw.MODE?=$(make-fw.optMODE)
+
+# default compilation flag
+make-fw.default.CFLAGS?=-Wall
+make-fw.default.dbgCFLAGS?=-g
+make-fw.default.optCFLAGS?=-O3 -DNDEBUG
 
 # --------------------------------------------------------------------------------
-# settings
+# GLOBAL variables to be used in src makefiles
 
-#$(VERBOSE).SILENT:
+# ROOT path to top of src folder
+ROOT?=.
 
-CFLAGS+=-Wall
-$(OBASE)/dbg/obj/%: CFLAGS+=-g
-$(OBASE)/opt/obj/%: CFLAGS+=-O3 -DNDEBUG
+# OUT is the relative path to the output folder
+make-fw.OBASE:=$(ROOT)/$(make-fw.BUILD_FOLDER)
+OUT:=$(make-fw.OBASE)/$(make-fw.MODE)
 
-$(OBASE)/dbg/bin/%: LDFLAGS+=-L $(OBASE)/dbg/lib -Xlinker -R -Xlinker ../lib
-$(OBASE)/opt/bin/%: LDFLAGS+=-L $(OBASE)/opt/lib -Xlinker -R -Xlinker ../lib
+
+# --------------------------------------------------------------------------------
+# --------------------------------------------------------------------------------
+# NOTHING below should be needed for src makefiles
 
 # --------------------------------------------------------------------------------
 # Object file dependencies management
@@ -43,14 +55,27 @@ $(OBASE)/opt/bin/%: LDFLAGS+=-L $(OBASE)/opt/lib -Xlinker -R -Xlinker ../lib
 #   abruptly, or bad timestamp. In any case we do not return error if mv or touch
 #   fails, the worst case dependency is missing and will be re-generated the next
 #   compilation.
-DEPFLAGS = -MT $@ -MMD -MP -MF $(OUT)/dep/$*.Td
-POSTCOMPILE = mv -f $(OUT)/dep/$*.Td $(OUT)/dep/$*.d && touch $@ | true
+DEPFLAGS = -MT $@ -MMD -MP -MF $(OUT)/$(make-fw.DEP)/$*.Td
+POSTCOMPILE = mv -f $(OUT)/$(make-fw.DEP)/$*.Td $(OUT)/$(make-fw.DEP)/$*.d && touch $@ | true
 
 # .o target will be dependent of the dependencies file in case this last one is
 # deleted. Then an empty fake rule is added for it to avoid a "no rule to make
 # target"
-$(OUT)/dep/%.d: ;
-.PRECIOUS: $(OUT)/dep/%.d
+$(OUT)/$(make-fw.DEP)/%.d: ;
+.PRECIOUS: $(OUT)/$(make-fw.DEP)/%.d
+
+
+# --------------------------------------------------------------------------------
+# settings, global and per targets
+
+#$(VERBOSE).SILENT:
+
+CFLAGS+=$(make-fw.default.CFLAGS)
+$(make-fw.OBASE)/$(make-fw.dbgMODE)/$(make-fw.OBJ)/%: CFLAGS+=$(make-fw.default.dbgCFLAGS)
+$(make-fw.OBASE)/$(make-fw.optMODE)/$(make-fw.OBJ)/%: CFLAGS+=$(make-fw.default.optCFLAGS)
+
+$(make-fw.OBASE)/$(make-fw.dbgMODE)/$(make-fw.BIN)/%: LDFLAGS+=-L $(make-fw.OBASE)/$(make-fw.dbgMODE)/$(make-fw.LIB) -Xlinker -R -Xlinker ../$(make-fw.LIB)
+$(make-fw.OBASE)/$(make-fw.optMODE)/$(make-fw.BIN)/%: LDFLAGS+=-L $(make-fw.OBASE)/$(make-fw.optMODE)/$(make-fw.LIB) -Xlinker -R -Xlinker ../$(make-fw.LIB)
 
 
 # --------------------------------------------------------------------------------
@@ -60,26 +85,26 @@ $(OUT)/dep/%.d: ;
 .PHONY: clean
 
 # order dependencies are obj and dep folders
-$(OUT)/obj/%.o: $(ROOT)/%.c $(OUT)/dep/%.d | $$(@D)/.folder $(OUT)/dep/$$(dir $$(*)).folder
+$(OUT)/$(make-fw.OBJ)/%.o: $(ROOT)/%.c $(OUT)/$(make-fw.DEP)/%.d | $$(@D)/.folder $(OUT)/$(make-fw.DEP)/$$(dir $$(*)).folder
 	$(COMPILE.c) $< $(DEPFLAGS) -o $@ ; $(POSTCOMPILE)
 
-$(OUT)/lib/%.so: | $(OUT)/.folders
+$(OUT)/$(make-fw.LIB)/%.so: | $(OUT)/.folders
 	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -shared -o $@ $<
 
-$(OUT)/lib/%.a: | $(OUT)/.folders
+$(OUT)/$(make-fw.LIB)/%.a: | $(OUT)/.folders
 	$(AR) $(ARFLAGS) $@ $^
 
-$(OUT)/bin/%: | $(OUT)/.folders
+$(OUT)/$(make-fw.BIN)/%: | $(OUT)/.folders
 	$(LINK.s) $(filter-out %.so,$^)  $(LDLIBS) -o $@
 
 all:
 clean:
-	rm -fr $(OBASE)
+	rm -fr $(make-fw.OBASE)
 
 
 # rules to create output folders
 $(OUT)/.folders:
-	mkdir -p $(OUT)/bin $(OUT)/lib $(OUT)/dep
+	mkdir -p $(OUT)/$(make-fw.BIN) $(OUT)/$(make-fw.LIB) $(OUT)/$(make-fw.DEP)
 	touch $@
 
 %/.folder: 
@@ -90,17 +115,11 @@ $(OUT)/.folders:
 # --------------------------------------------------------------------------------
 # function helpers
 
-## adding a static library pre-requisite to a target, arguments:
-##   1: target
-##   2: pre-requisite
-## it supposes that:
-##   <target>_TARGET contains the name of the target
-##   <target>_EXT_DEPS will contain external dependencies needed to link
-#define add_ar_dep=
-#include $(ROOT)/$(2)/makefile
-#$(1): LDFLAGS+=$($(2).EXT_DEPS)
-#$(1): $($(2).TARGET)
-#endef
+# construct the list of object/dependency files: $(make-fw.{objects|deps} folder, list of src files)
+# eg. $(make-fw.objects libX, file.c)
+make-fw.objects=$(patsubst %.c,$(OUT)/$(make-fw.OBJ)/$(1)/%.o,$(2))
+make-fw.deps=$(patsubst %.c,$(OUT)/$(make-fw.DEP)/$(1)/%.d,$(2))
+
 
 else
 

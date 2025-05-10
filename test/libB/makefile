@@ -7,8 +7,8 @@ include $(ROOT)/../scripts/make-fw.mk
 
 libB.TARGET  := $(OUT)/lib/libB.so
 libB.SRCS    := libB.c
-libB.OBJS    := $(patsubst %.c,$(OUT)/obj/libB/%.o,$(libB.SRCS))
-libB.DEPS    := $(patsubst %.c,$(OUT)/dep/libB/%.d,$(libB.SRCS))
+libB.OBJS    := $(call make-fw.objects,libB,$(libB.SRCS))
+libB.DEPS    := $(call make-fw.deps,libB,$(libB.SRCS))
 libB.LDFLAGS :=
 
 ifndef all.defined
