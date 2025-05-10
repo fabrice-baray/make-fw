@@ -2,7 +2,7 @@ ifndef libA_included
 libA_included:=1
 
 ROOT?=..
-include $(ROOT)/../scripts/make-fw.mk
+include $(ROOT)/../make-fw.mk
 
 
 libA_TARGET   := $(OUT)/lib/libA.a

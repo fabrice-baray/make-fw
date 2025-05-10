@@ -1,5 +1,5 @@
 
-include ../scripts/make-fw.mk
+include ../make-fw.mk
 
 include toolA/makefile
 all: toolA

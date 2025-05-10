@@ -2,7 +2,7 @@ ifndef toolA.included
 toolA.included:=1
 
 ROOT?=..
-include $(ROOT)/../scripts/make-fw.mk
+include $(ROOT)/../make-fw.mk
 
 
 toolA_TARGET := $(OUT)/bin/toolA

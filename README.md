@@ -87,7 +87,7 @@ base_folder
   - you can include your own .mk file defining new implicit rules
 
         ROOT?=..
-        include $(ROOT)/../scripts/make-fw.mk
+        include $(ROOT)/../make-fw.mk
 
 **3. always include generated dependency files**
 
