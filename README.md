@@ -66,16 +66,17 @@ base_folder
 ```
 
 - make-fw file can be install in base_folder or base_folder/externals as an external dependency
-- <mode> corresponds to compilation modes, optimized (opt), debug (dbg), asan (asan),...
+- \<mode\> corresponds to compilation modes, optimized (opt), debug (dbg), asan (asan),...
+- test folder can be used as an example of make-fw usage
 
 ## Rules to write makefiles
 
 **1. prevent double inclusion** 
 
-       ifndef file_is_included
-       file_is_included:=1
-         ...
-       endif
+    ifndef file_is_included
+    file_is_included:=1
+      ...
+    endif
 
 
 **2. define ROOT and include make-fw.mk from that reference**
@@ -101,4 +102,9 @@ base_folder
         include $(ROOT)/lib/makefile
         $(OUT)/bin/tool: LDFLAGS+=$(OUT)/lib/lib.a
         $(OUT)/bin/tool: $(OUT)/lib/lib.a
-
+		
+  - optionally define an *all:* rule for what you want to compile by default in that folder:
+  
+        ifndef all.defined
+		  all: $(OUT)/lib/libA.a
+        endif
