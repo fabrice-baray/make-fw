@@ -151,7 +151,7 @@ including make-fw.mk:
 - default CFLAGS: **mfwCFLAGS**  
   defaults to **-Wall**
   
-- default CFLAGS per mode: **mfw<mode>CFLAGS**  
+- default CFLAGS per mode: **mfw\<mode\>CFLAGS**  
   defaults to:
   - dbg mode: **-g**
   - opt mode: **-O3 -DNDEBUG**
