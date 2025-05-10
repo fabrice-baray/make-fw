@@ -25,6 +25,8 @@ something useful. I tried to respect the following principles:
 
 - for simplicity, avoid as much as possible the use of $(eval ...) function
 
+- use as much as possible target specific variables (keep locality)
+
 - ...
 
 Other references:
@@ -87,11 +89,21 @@ base_folder
         ROOT?=..
         include $(ROOT)/../scripts/make-fw.mk
 
-**3. define your own dependency rules:**
+**3. always include generated dependency files**
+
+        -include $(OUT)/dep/<folder>/file.d
+		
+**4. define your own dependencies with:**
 
   - create a static library with some object files:
 
         $(OUT)/lib/libA.a: $(OUT)/obj/libA/file.o
+
+  - optionally define an *all:* rule for what you want to compile by default in that folder:
+  
+        ifndef all.defined
+          all: $(OUT)/lib/libA.a
+        endif
 
   - create a binary linking some object files
   
@@ -102,9 +114,15 @@ base_folder
         include $(ROOT)/lib/makefile
         $(OUT)/bin/tool: LDFLAGS+=$(OUT)/lib/lib.a
         $(OUT)/bin/tool: $(OUT)/lib/lib.a
-		
-  - optionally define an *all:* rule for what you want to compile by default in that folder:
+        
+  - create a dynamic library with some object files:
+
+        $(OUT)/lib/libB.so: $(OUT)/obj/libB/file.o
+        $(OUT)/obj/libB/file.o: CFMAGS+=-shared
+
+  - add a dependency between a tool and a dynamic library:
   
-        ifndef all.defined
-		  all: $(OUT)/lib/libA.a
-        endif
+        $(OUT)/bin/tool: $(OUT)/lib/libX.so
+		$(OUT)/bin/tool: LDLIBS+=-lX
+		
+		

@@ -9,7 +9,7 @@ libA.TARGET   := $(OUT)/lib/libA.a
 libA.SRCS     := libA.c
 libA.OBJS     := $(patsubst %.c,$(OUT)/obj/libA/%.o,$(libA.SRCS))
 libA.DEPS     := $(patsubst %.c,$(OUT)/dep/libA/%.d,$(libA.SRCS))
-libA.EXT_DEPS := -lm
+libA.LDFLAGS := -lm
 
 ifndef all.defined
 all: $(libA.TARGET)

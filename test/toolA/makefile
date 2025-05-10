@@ -21,11 +21,12 @@ $(toolA.TARGET): $(toolA.OBJS)
 
 #(eval $(call add_ar_dep,$(toolA.TARGET),libA))
 include $(ROOT)/libA/makefile
-$(toolA.TARGET): LDFLAGS+=$(libA.EXT_DEPS)
+$(toolA.TARGET): LDFLAGS+=$(libA.LDFLAGS)
 $(toolA.TARGET): $(libA.TARGET)
 
 include $(ROOT)/libB/makefile
-$(toolA.TARGET): LDFLAGS+=$(libB.EXT_DEPS)
 $(toolA.TARGET): $(libB.TARGET)
+$(toolA.TARGET): LDFLAGS+=$(libB.LDFLAGS)
+$(toolA.TARGET): LDLIBS+=-lB
 
 endif

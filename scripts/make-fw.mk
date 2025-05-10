@@ -28,6 +28,9 @@ CFLAGS+=-Wall
 $(OBASE)/dbg/obj/%: CFLAGS+=-g
 $(OBASE)/opt/obj/%: CFLAGS+=-O3 -DNDEBUG
 
+$(OBASE)/dbg/bin/%: LDFLAGS+=-L $(OBASE)/dbg/lib -Xlinker -R -Xlinker ../lib
+$(OBASE)/opt/bin/%: LDFLAGS+=-L $(OBASE)/opt/lib -Xlinker -R -Xlinker ../lib
+
 # --------------------------------------------------------------------------------
 # Object file dependencies management
 
@@ -60,12 +63,14 @@ $(OUT)/dep/%.d: ;
 $(OUT)/obj/%.o: $(ROOT)/%.c $(OUT)/dep/%.d | $$(@D)/.folder $(OUT)/dep/$$(dir $$(*)).folder
 	$(COMPILE.c) $< $(DEPFLAGS) -o $@ ; $(POSTCOMPILE)
 
+$(OUT)/lib/%.so: | $(OUT)/.folders
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -shared -o $@ $<
 
 $(OUT)/lib/%.a: | $(OUT)/.folders
 	$(AR) $(ARFLAGS) $@ $^
 
 $(OUT)/bin/%: | $(OUT)/.folders
-	$(LINK.s) $^ $(LDLIBS) -o $@
+	$(LINK.s) $(filter-out %.so,$^)  $(LDLIBS) -o $@
 
 all:
 clean:
