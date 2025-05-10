@@ -101,7 +101,7 @@ $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cc $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/
 	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
 
 $(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
-	$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -shared -o $@ $<
+	$(LINK.cc) $(LDFLAGS) -shared -o $@ $<
 
 $(OUT)/$(mfwLIB)/%.a: | $(OUT)/.folders
 	$(AR) $(ARFLAGS) $@ $^

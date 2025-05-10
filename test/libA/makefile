@@ -3,7 +3,7 @@ libA_included:=1
 
 ROOT?=..
 include $(ROOT)/../make-fw.mk
-
+include $(ROOT)/libA/makefile_defs.mk
 
 libA_TARGET   := $(OUT)/lib/libA.a
 libA_SRCS     := libA.c
@@ -16,12 +16,12 @@ endif
 
 # create target rule dependent on object files, and using specific CFLAGS
 $(libA_TARGET): $(libA_OBJS)
-$(libA_OBJS): CFLAGS+=-DLIBA
 
 # include generated dependency files for the needed source files
--include $(call mfwDEPS,libA,$(LIBA_SRCS))
+-include $(call mfwDEPS,libA,$(libA_SRCS))
 
 # include sub folders
 include $(ROOT)/libA/subFolder/makefile
+$(libA_TARGET): $(libA_subFolder_OBJS)
 
 endif
