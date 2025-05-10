@@ -94,6 +94,20 @@ base_folder
 
         -include $(OUT)/dep/<folder>/file.d
 		
+**4. use of variables**
+
+  - any variable defined **should be uniquely prefixed** to avoid any clash with variables of other makefiles
+
+	      libA_SRCS := libA.c
+
+  - function *mfwOBJECTS path files* helps building list of output files
+  
+		  libA_OBJS:= $(call mfwOBJECTS,libA,$(libA_SRCS))
+		  
+  - function *mfwDEPS path, files* helps building list of dependency files to include
+  
+		  -include $(call mfwDEPS,libA,$(libA_SRCS))
+		  		
 **4. define your own dependencies with:**
 
   - create a static library with some object files:
@@ -109,7 +123,7 @@ base_folder
   - create a binary linking some object files
   
         $(OUT)/bin/tool: $(OUT)/obj/tool/file.o
-
+	
   - add a dependency between a tool and a static library:
 
         include $(ROOT)/lib/makefile
