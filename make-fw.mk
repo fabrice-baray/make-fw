@@ -2,6 +2,8 @@
 # make-fw: makefile frameworks for c/c++ projects
 # https://github.com/fabrice-baray/make-fw
 #
+# SPDX-FileCopyrightText: Fabrice Baray
+# SPDX-License-Identifier: MIT
 
 
 ifndef mfwIncluded
