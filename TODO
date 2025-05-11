@@ -1,0 +1,8 @@
+
+- "makefile -f" from an outside directory
+- SAN modes
+- cppcheck/static-clang modes
+- shared lib versus static lib modes
+- non-verbose output
+- count targets + print percentage
+- generated header rule
