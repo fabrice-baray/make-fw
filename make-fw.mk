@@ -102,6 +102,9 @@ $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.c $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cc $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
 	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
 
+$(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cpp $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
+	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
+
 $(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
 	$(LINK.cc) $(LDFLAGS) -shared -o $@ $<
 
@@ -131,8 +134,8 @@ $(OUT)/.folders:
 
 # construct the list of object/dependency files: $(mfw{OBJECTS|DEPS} folder, list of src files)
 # eg. $(mfwOBJECTS libX, file.c)
-mfwOBJECTS=$(patsubst %.c,$(OUT)/$(mfwOBJ)/$(1)/%.o,$(filter %.c,$(2))) $(patsubst %.cc,$(OUT)/$(mfwOBJ)/$(1)/%.o,$(filter %.cc,$(2)))
-mfwDEPS=$(patsubst %.c,$(OUT)/$(mfwDEP)/$(1)/%.d,$(filter %.c,$(2))) $(patsubst %.cc,$(OUT)/$(mfwDEP)/$(1)/%.d,$(filter %.cc,$(2)))
+mfwOBJECTS=$(patsubst %.c,$(OUT)/$(mfwOBJ)/$(1)/%.o,$(filter %.c,$(2))) $(patsubst %.cc,$(OUT)/$(mfwOBJ)/$(1)/%.o,$(filter %.cc,$(2))) $(patsubst %.cpp,$(OUT)/$(mfwOBJ)/$(1)/%.o,$(filter %.cpp,$(2)))
+mfwDEPS=$(patsubst %.c,$(OUT)/$(mfwDEP)/$(1)/%.d,$(filter %.c,$(2))) $(patsubst %.cc,$(OUT)/$(mfwDEP)/$(1)/%.d,$(filter %.cc,$(2))) $(patsubst %.cpp,$(OUT)/$(mfwDEP)/$(1)/%.d,$(filter %.cpp,$(2)))
 
 
 else
