@@ -107,27 +107,27 @@ $(mfwOBASE)/$(mfwASAN)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwASAN)/$(mfwLIB)
 
 # order dependencies are obj and dep folders
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.c $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
-	@echo "[cc]" $*.o
+	@echo "[cc]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(COMPILE.c) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
 
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cc $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
-	@echo "[c+]" $*.o
+	@echo "[c+]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
 
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cpp $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
-	@echo "[c+]" $*.o
+	@echo "[c+]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
 
 $(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
-	@echo "[ld]" $*.so
+	@echo "[ld]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(LINK.cc) $(LDFLAGS) -shared -o $@ $<
 
 $(OUT)/$(mfwLIB)/%.a: | $(OUT)/.folders
-	@echo "[ar]" $*.a
+	@echo "[ar]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(AR) $(ARFLAGS) $@ $^
 
 $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
-	@echo "[ld]" $*
+	@echo "[ld]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)$*
 	$(LINK.cc) $(filter-out %.so,$^) $(LDLIBS) -o $@
 
 all:
