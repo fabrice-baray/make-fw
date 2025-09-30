@@ -1,6 +1,6 @@
 
 - "makefile -f" from an outside directory
-- SAN modes
+- TSAN mode
 - cppcheck/static-clang modes
 - clang-tidy, clang-format modes
 - shared lib versus static lib modes

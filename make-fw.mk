@@ -25,15 +25,24 @@ MODE?=$(mfwMODE)
 mfwMODE?=$(mfwOPT)
 mfwDBG?=dbg
 mfwOPT?=opt
+mfwASAN?=asan
+
+ifeq (,$(filter $(mfwDBG) $(mfwOPT) $(mfwASAN),$(MODE)))
+  $(error MODE should be either $(mfwDBG), $(mfwOPT) or $(mfwASAN))
+endif
 
 # default compilation flag
 mfwCFLAGS?=-Wall -I$(ROOT)
 mfw$(mfwDBG)CFLAGS?=-g
-mfx$(mfwOPT)CFLAGS?=-O3 -DNDEBUG
+mfw$(mfwOPT)CFLAGS?=-O3 -DNDEBUG
+mfw$(mfwASAN)CFLAGS?=-g -fsanitize=address
 
 mfwCXXFLAGS?=-Wall -I$(ROOT)
 mfw$(mfwDBG)CXXFLAGS?=-g
-mfx$(mfwOPT)CXXFLAGS?=-O3 -DNDEBUG
+mfw$(mfwOPT)CXXFLAGS?=-O3 -DNDEBUG
+mfw$(mfwASAN)CXXFLAGS?=-g -fsanitize=address
+
+mfw$(mfwASAN)LDFLAG=-fsanitize=address
 
 # --------------------------------------------------------------------------------
 # GLOBAL variables to be used in src makefiles
@@ -77,14 +86,17 @@ $(OUT)/$(mfwDEP)/%.d: ;
 
 CFLAGS+=$(mfwCFLAGS)
 $(mfwOBASE)/$(mfwDBG)/$(mfwOBJ)/%: CFLAGS+=$(mfw$(mfwDBG)CFLAGS)
-$(mfwOBASE)/$(mfwOPT)/$(mfwOBJ)/%: CFLAGS+=$(mfx$(mfwOPT)CFLAGS)
+$(mfwOBASE)/$(mfwOPT)/$(mfwOBJ)/%: CFLAGS+=$(mfw$(mfwOPT)CFLAGS)
+$(mfwOBASE)/$(mfwASAN)/$(mfwOBJ)/%: CFLAGS+=$(mfw$(mfwASAN)CFLAGS)
 
 CXXFLAGS+=$(mfwCXXFLAGS)
 $(mfwOBASE)/$(mfwDBG)/$(mfwOBJ)/%: CXXFLAGS+=$(mfw$(mfwDBG)CXXFLAGS)
-$(mfwOBASE)/$(mfwOPT)/$(mfwOBJ)/%: CXXFLAGS+=$(mfx$(mfwOPT)CXXFLAGS)
+$(mfwOBASE)/$(mfwOPT)/$(mfwOBJ)/%: CXXFLAGS+=$(mfw$(mfwOPT)CXXFLAGS)
+$(mfwOBASE)/$(mfwASAN)/$(mfwOBJ)/%: CXXFLAGS+=$(mfw$(mfwASAN)CXXFLAGS)
 
 $(mfwOBASE)/$(mfwDBG)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwDBG)/$(mfwLIB) -Xlinker -R -Xlinker '$$ORIGIN'/../$(mfwLIB)
 $(mfwOBASE)/$(mfwOPT)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwOPT)/$(mfwLIB) -Xlinker -R -Xlinker '$$ORIGIN'/../$(mfwLIB)
+$(mfwOBASE)/$(mfwASAN)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwASAN)/$(mfwLIB) -Xlinker -R -Xlinker '$$ORIGIN'/../$(mfwLIB) $(mfw$(mfwASAN)LDFLAG)
 
 
 # --------------------------------------------------------------------------------
