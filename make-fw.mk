@@ -35,12 +35,12 @@ endif
 mfwCFLAGS?=-Wall -I$(ROOT)
 mfw$(mfwDBG)CFLAGS?=-g
 mfw$(mfwOPT)CFLAGS?=-O3 -DNDEBUG
-mfw$(mfwASAN)CFLAGS?=-g -fsanitize=address
+mfw$(mfwASAN)CFLAGS?=-O1 -g -fsanitize=address
 
 mfwCXXFLAGS?=-Wall -I$(ROOT)
 mfw$(mfwDBG)CXXFLAGS?=-g
 mfw$(mfwOPT)CXXFLAGS?=-O3 -DNDEBUG
-mfw$(mfwASAN)CXXFLAGS?=-g -fsanitize=address
+mfw$(mfwASAN)CXXFLAGS?=-O1 -g -fsanitize=address
 
 mfw$(mfwASAN)LDFLAG=-fsanitize=address
 
@@ -132,6 +132,7 @@ $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 
 all:
 clean:
+	@echo rm -fr $(mfwOBASE)
 	rm -fr $(mfwOBASE)
 
 $(VERBOSE).SILENT:
