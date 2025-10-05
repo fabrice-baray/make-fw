@@ -127,7 +127,7 @@ $(OUT)/$(mfwLIB)/%.a: | $(OUT)/.folders
 	$(AR) $(ARFLAGS) $@ $^
 
 $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
-	@echo "[ld]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)$*
+	@echo "[ld]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(LINK.cc) $(filter-out %.so,$^) $(LDLIBS) -o $@
 
 all:
