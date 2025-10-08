@@ -30,23 +30,27 @@ mfwMODE?=$(mfwOPT)
 mfwDBG?=dbg
 mfwOPT?=opt
 mfwASAN?=asan
+mfwTSAN?=tsan
 
-ifeq (,$(filter $(mfwDBG) $(mfwOPT) $(mfwASAN),$(MODE)))
-  $(error MODE should be either $(mfwDBG), $(mfwOPT) or $(mfwASAN))
+ifeq (,$(filter $(mfwDBG) $(mfwOPT) $(mfwASAN) $(mfwTSAN),$(MODE)))
+  $(error MODE should be either $(mfwDBG), $(mfwOPT), $(mfwASAN) or $(mfwTSAN))
 endif
 
 # default compilation flag
 mfwCFLAGS?=-Wall -I$(ROOT)
 mfw$(mfwDBG)CFLAGS?=-g
 mfw$(mfwOPT)CFLAGS?=-O3 -DNDEBUG
-mfw$(mfwASAN)CFLAGS?=-O1 -g -fsanitize=address
+mfw$(mfwASAN)CFLAGS?=$(mfw$(mfwDBG)CFLAGS) -O1 -fsanitize=address -fno-omit-frame-pointer
+mfw$(mfwTSAN)CFLAGS?=$(mfw$(mfwDBG)CFLAGS) -O1 -fsanitize=thread  -fno-omit-frame-pointer
 
 mfwCXXFLAGS?=-Wall -I$(ROOT)
 mfw$(mfwDBG)CXXFLAGS?=-g
 mfw$(mfwOPT)CXXFLAGS?=-O3 -DNDEBUG
-mfw$(mfwASAN)CXXFLAGS?=-O1 -g -fsanitize=address
+mfw$(mfwASAN)CXXFLAGS?= $(mfw$(mfwDBG)CXXFLAGS) -O1 -fsanitize=address -fno-omit-frame-pointer
+mfw$(mfwTSAN)CXXFLAGS?= $(mfw$(mfwDBG)CXXFLAGS) -O1 -fsanitize=thread  -fno-omit-frame-pointer
 
 mfw$(mfwASAN)LDFLAG=-fsanitize=address
+mfw$(mfwTSAN)LDFLAG=-fsanitize=thread
 
 # --------------------------------------------------------------------------------
 # GLOBAL variables to be used in src makefiles
@@ -92,15 +96,18 @@ CFLAGS+=$(mfwCFLAGS)
 $(mfwOBASE)/$(mfwDBG)/$(mfwOBJ)/%: CFLAGS+=$(mfw$(mfwDBG)CFLAGS)
 $(mfwOBASE)/$(mfwOPT)/$(mfwOBJ)/%: CFLAGS+=$(mfw$(mfwOPT)CFLAGS)
 $(mfwOBASE)/$(mfwASAN)/$(mfwOBJ)/%: CFLAGS+=$(mfw$(mfwASAN)CFLAGS)
+$(mfwOBASE)/$(mfwTSAN)/$(mfwOBJ)/%: CFLAGS+=$(mfw$(mfwTSAN)CFLAGS)
 
 CXXFLAGS+=$(mfwCXXFLAGS)
 $(mfwOBASE)/$(mfwDBG)/$(mfwOBJ)/%: CXXFLAGS+=$(mfw$(mfwDBG)CXXFLAGS)
 $(mfwOBASE)/$(mfwOPT)/$(mfwOBJ)/%: CXXFLAGS+=$(mfw$(mfwOPT)CXXFLAGS)
 $(mfwOBASE)/$(mfwASAN)/$(mfwOBJ)/%: CXXFLAGS+=$(mfw$(mfwASAN)CXXFLAGS)
+$(mfwOBASE)/$(mfwTSAN)/$(mfwOBJ)/%: CXXFLAGS+=$(mfw$(mfwTSAN)CXXFLAGS)
 
 $(mfwOBASE)/$(mfwDBG)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwDBG)/$(mfwLIB) -Xlinker -R -Xlinker '$$ORIGIN'/../$(mfwLIB)
 $(mfwOBASE)/$(mfwOPT)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwOPT)/$(mfwLIB) -Xlinker -R -Xlinker '$$ORIGIN'/../$(mfwLIB)
 $(mfwOBASE)/$(mfwASAN)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwASAN)/$(mfwLIB) -Xlinker -R -Xlinker '$$ORIGIN'/../$(mfwLIB) $(mfw$(mfwASAN)LDFLAG)
+$(mfwOBASE)/$(mfwTSAN)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwTSAN)/$(mfwLIB) -Xlinker -R -Xlinker '$$ORIGIN'/../$(mfwLIB) $(mfw$(mfwTSAN)LDFLAG)
 
 
 # --------------------------------------------------------------------------------
