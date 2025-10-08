@@ -12,6 +12,10 @@ mfwIncluded:=1
 # --------------------------------------------------------------------------------
 # default settings
 
+# current path
+mfwPATH:=$(shell pwd)
+mfwRELPATH=$(shell realpath -s --relative-to="$(mfwPATH)/$(ROOT)" "$(mfwPATH)")
+
 # build folder relative path to ROOT
 mfwBUILD_FOLDER?=../_build
 
@@ -101,9 +105,8 @@ $(mfwOBASE)/$(mfwASAN)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwASAN)/$(mfwLIB)
 
 # --------------------------------------------------------------------------------
 # generic compilation rules
-#	mkdir -p #(shell dirname $@)
 .SECONDEXPANSION:
-.PHONY: clean
+.PHONY: clean cleanR mrproper
 
 # order dependencies are obj and dep folders
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.c $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
@@ -131,7 +134,18 @@ $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 	$(LINK.cc) $(filter-out %.so,$^) $(LDLIBS) -o $@
 
 all:
+
+ifndef mfwCLEAN
+mfwCLEAN=1
 clean:
+	cd $(mfwOBASE) ; F=$$(find $(MODE)/$(mfwOBJ)/$(mfwRELPATH)/ -maxdepth 1 -type f ) ; if [ ! -z "$$F" ] ; then echo rm -f $$F ; rm -f $$F ; fi
+
+cleanR:
+	echo rm -fr $(MODE)/$(mfwOBJ)/$(mfwRELPATH)/* ; rm -fr $(OUT)/$(mfwOBJ)/$(mfwRELPATH)/*
+
+endif
+
+mrproper:
 	@echo rm -fr $(mfwOBASE)
 	rm -fr $(mfwOBASE)
 

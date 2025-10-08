@@ -6,5 +6,4 @@
 - shared lib versus static lib modes
 - count targets + print percentage
 - generated header rule
-- local clean rule
 - tags rule

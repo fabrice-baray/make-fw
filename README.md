@@ -143,6 +143,11 @@ base_folder
 
 - compilation can be invoked just by calling ``make`` in any folder
 - compilation with a different mode: ``make MODE=dbg``
+- clean:
+  - all object files of a given folder: ``make clean``
+  - all object files of a given folder recursively: ``make cleanR``
+  - clean all: ``make mrproper``
+
 
 ## Makefile configuration defaults
 
