@@ -27,7 +27,7 @@ something useful. I tried to respect the following principles:
 
 - use as much as possible target specific variables (keep locality)
 
-- ...
+- be compatible with the use of [bear](https://github.com/rizsotto/Bear.git)
 
 Other references:
 -  gnu make manual: https://www.gnu.org/software/make/manual/html_node/index.html
