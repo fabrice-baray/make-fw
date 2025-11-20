@@ -130,7 +130,7 @@ $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cpp $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)
 
 $(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
 	@echo "[ld]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
-	$(LINK.cc) $(LDFLAGS) -shared -o $@ $<
+	$(LINK.cc) $(LDFLAGS) -shared -o $@ $^ $(LDLIBS)
 
 $(OUT)/$(mfwLIB)/%.a: | $(OUT)/.folders
 	@echo "[ar]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
@@ -146,9 +146,11 @@ ifndef mfwCLEAN
 mfwCLEAN=1
 clean:
 	cd $(mfwOBASE) ; F=$$(find $(MODE)/$(mfwOBJ)/$(mfwRELPATH)/ -maxdepth 1 -type f ) ; if [ ! -z "$$F" ] ; then echo rm -f $$F ; rm -f $$F ; fi
+	cd $(mfwOBASE) ; F=$$(find $(MODE)/$(mfwDEP)/$(mfwRELPATH)/ -maxdepth 1 -type f ) ; if [ ! -z "$$F" ] ; then echo rm -f $$F ; rm -f $$F ; fi
 
 cleanR:
 	echo rm -fr $(MODE)/$(mfwOBJ)/$(mfwRELPATH)/* ; rm -fr $(OUT)/$(mfwOBJ)/$(mfwRELPATH)/*
+	echo rm -fr $(MODE)/$(mfwDEP)/$(mfwRELPATH)/* ; rm -fr $(OUT)/$(mfwDEP)/$(mfwRELPATH)/*
 
 endif
 
