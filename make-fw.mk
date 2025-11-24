@@ -52,6 +52,11 @@ mfw$(mfwTSAN)CXXFLAGS?= $(mfw$(mfwDBG)CXXFLAGS) -O1 -fsanitize=thread  -fno-omit
 mfw$(mfwASAN)LDFLAG=-fsanitize=address
 mfw$(mfwTSAN)LDFLAG=-fsanitize=thread
 
+# tools
+JQ:=jq
+MAKE:=make
+SED:=sed
+
 # --------------------------------------------------------------------------------
 # GLOBAL variables to be used in src makefiles
 
@@ -113,7 +118,7 @@ $(mfwOBASE)/$(mfwTSAN)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwTSAN)/$(mfwLIB)
 # --------------------------------------------------------------------------------
 # generic compilation rules
 .SECONDEXPANSION:
-.PHONY: clean cleanR mrproper
+.PHONY: clean cleanR mrproper compile_commands.json $(mfwOBASE)/compile_commands.json
 
 # order dependencies are obj and dep folders
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.c $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
@@ -141,6 +146,14 @@ $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 	$(LINK.cc) $(filter-out %.so,$^) $(LDLIBS) -o $@
 
 all:
+
+compile_commands.json: $(mfwOBASE)/compile_commands.json
+
+$(mfwOBASE)/compile_commands.json: | $(OUT)/.folders
+	@echo "[jq]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
+	$(MAKE) -n -B | $(SED) -n -r -e '/^clang\+\+|clang|g\+\+|gcc/ { s/ ; mv .*//; s/-MMD|-MP|(-(MF|MT) [^ ]+)//g ; s/  +/ /g; p }' | $(JQ) --arg path $$PWD -Rs 'split("\n") | [ .[] | select(length > 0)] | map({arguments: . |= split(" "), directory: $$path, file: .|= capture("-c (?<file>[^ ]+)")|.file, output: .|= capture("-o (?<output>[^ ]+)") | .output}) | sort_by(.output)' > $@.new
+	if [ -e $@ ] ; then $(JQ) -s 'add | unique_by(.output)' $@.new $@ > $@ ; else mv $@.new $@ ; fi
+
 
 ifndef mfwCLEAN
 mfwCLEAN=1

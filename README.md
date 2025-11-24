@@ -27,13 +27,17 @@ something useful. I tried to respect the following principles:
 
 - use as much as possible target specific variables (keep locality)
 
-- be compatible with the use of [bear](https://github.com/rizsotto/Bear.git)
+- being able to generate a compile_commands.json
 
 Other references:
 -  gnu make manual: https://www.gnu.org/software/make/manual/html_node/index.html
 -  http://make.mad-scientist.net/papers/multi-architecture-builds
 
 
+## Dependencies
+
+- [jq](https://github.com/jqlang): used to generate natively compile_commands.json, by parsing a "make -n" make dryrun
+- [bear](https://github.com/rizsotto/Bear.git): make-fw is compatible with bear to generate compile_commands.json
 
 
 ## Project global structure
@@ -147,6 +151,7 @@ base_folder
   - all object files of a given folder: ``make clean``
   - all object files of a given folder recursively: ``make cleanR``
   - clean all: ``make mrproper``
+- json compile database: from a not compiled workspace, ''make compile_commands.json''
 
 
 ## Makefile configuration defaults
