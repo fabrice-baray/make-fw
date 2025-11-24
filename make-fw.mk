@@ -121,7 +121,7 @@ $(mfwOBASE)/$(mfwTSAN)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwTSAN)/$(mfwLIB)
 # --------------------------------------------------------------------------------
 # generic compilation rules
 .SECONDEXPANSION:
-.PHONY: clean cleanR mrproper compile_commands.json $(mfwOBASE)/compile_commands.json
+.PHONY: clean cleanR mrproper json compile_commands.json $(mfwOBASE)/compile_commands.json
 
 # order dependencies are obj and dep folders
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.c $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
@@ -150,6 +150,7 @@ $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 
 all:
 
+json: compile_commands.json
 compile_commands.json: $(mfwOBASE)/compile_commands.json
 
 $(mfwOBASE)/compile_commands.json: | $(OUT)/.folders
