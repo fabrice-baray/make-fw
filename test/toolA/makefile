@@ -23,6 +23,7 @@ $(toolA_TARGET): $(toolA_OBJS)
 include $(ROOT)/libA/makefile
 $(toolA_TARGET): LDFLAGS+=$(libA_LDFLAGS)
 $(toolA_TARGET): $(libA_TARGET)
+$(toolA_TARGET): LDLIBS+=$(libA_TARGET)
 
 # dependent on libB
 include $(ROOT)/libB/makefile

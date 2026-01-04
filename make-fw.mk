@@ -123,11 +123,13 @@ $(mfwOBASE)/$(mfwTSAN)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwTSAN)/$(mfwLIB)
 .SECONDEXPANSION:
 .PHONY: clean cleanR mrproper json compile_commands.json $(mfwOBASE)/compile_commands.json
 
+# default is COMPILE.c = $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
 # order dependencies are obj and dep folders
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.c $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
 	@echo "[cc]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(COMPILE.c) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
 
+# default is COMPILE.cc = $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cc $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
 	@echo "[c+]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
@@ -136,17 +138,19 @@ $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cpp $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)
 	@echo "[c+]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
 
+# default is LINK.cc = $(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 $(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
 	@echo "[ld]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
-	$(LINK.cc) $(LDFLAGS) -shared -o $@ $^ $(LDLIBS)
+	$(LINK.cc) $(filter-out %.so,$(filter-out %.a,$^)) $(LDLIBS) -shared -o $@ 
 
 $(OUT)/$(mfwLIB)/%.a: | $(OUT)/.folders
 	@echo "[ar]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
 	$(AR) $(ARFLAGS) $@ $^
 
+# default if LINK.cc = $(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 	@echo "[ld]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
-	$(LINK.cc) $(filter-out %.so,$^) $(LDLIBS) -o $@
+	$(LINK.cc) $(filter-out %.so,$(filter-out %.a,$^)) $(LDLIBS) -o $@
 
 all:
 
