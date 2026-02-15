@@ -88,7 +88,15 @@ OUT:=$(mfwOBASE)/$(MODE)
 #   fails, the worst case dependency is missing and will be re-generated the next
 #   compilation.
 mfwDEPFLAGS = -MT $@ -MMD -MP -MF $(OUT)/$(mfwDEP)/$*.Td
-mfwPOSTCOMPILE = mv -f $(OUT)/$(mfwDEP)/$*.Td $(OUT)/$(mfwDEP)/$*.d && touch -c $@ | true
+mfwPOSTCOMPILE = if test -e $(OUT)/$(mfwDEP)/$*.Td ; then \
+                   if [[ "$(ROOT)" == "." ]] ; then \
+                     sed -e 's+^\([^ ]\)+$$(ROOT)/\1+' -e 's+ \([^ \\]\)+ $$(ROOT)/\1+g' $(OUT)/$(mfwDEP)/$*.Td > $(OUT)/$(mfwDEP)/$*.d ; \
+                   else \
+                     sed -e 's+../../+$$(ROOT)/+g' $(OUT)/$(mfwDEP)/$*.Td > $(OUT)/$(mfwDEP)/$*.d ; \
+                   fi ; \
+                   rm -f $(OUT)/$(mfwDEP)/$*.Td ; \
+                   touch -c $@ ; \
+                 fi ; true
 
 # .o target will be dependent of the dependencies file in case this last one is
 # deleted. Then an empty fake rule is added for it to avoid a "no rule to make
