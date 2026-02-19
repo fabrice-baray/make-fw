@@ -167,7 +167,7 @@ compile_commands.json: $(mfwOBASE)/compile_commands.json
 
 $(mfwOBASE)/compile_commands.json: | $(OUT)/.folders
 	@echo "[jq]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
-	$(MAKE) -n -B $(mfwJSON_TARGET) | $(SED) -n -r -e '/^clang\+\+|clang|g\+\+|gcc/ { s/ ; mv .*//; s/-MMD|-MP|(-(MF|MT) [^ ]+)//g ; s/  +/ /g; p }' | $(JQ) --arg path $$PWD -Rs 'split("\n") | [ .[] | select(length > 0)] | map({arguments: . |= split(" "), directory: $$path, file: .|= capture("-c (?<file>[^ ]+)")|.file, output: .|= capture("-o (?<output>[^ ]+)") | .output}) | sort_by(.output)' > $@.new
+	$(MAKE) -n -B $(mfwJSON_TARGET) | $(SED) -n -r -e '/^clang\+\+|clang|g\+\+|gcc/ { s/ ; if .*//; s/-MMD|-MP|(-(MF|MT) [^ ]+)//g ; s/  +/ /g; p }' | $(JQ) --arg path $$PWD -Rs 'split("\n") | [ .[] | select(length > 0)] | map({arguments: . |= split(" "), directory: $$path, file: .|= capture("-c (?<file>[^ ]+)")|.file, output: .|= capture("-o (?<output>[^ ]+)") | .output}) | sort_by(.output)' > $@.new
 	if [ -e $@ ] ; then $(JQ) -s 'add | unique_by(.output)' $@.new $@ > $@ ; rm $@.new ; else mv $@.new $@ ; fi
 
 
