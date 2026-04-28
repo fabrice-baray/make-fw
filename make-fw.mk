@@ -170,8 +170,20 @@ $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 all:
 
 clang-format:
-	@for i in $$($(MAKE) -n -B| $(SED) -n -r -e '/^clang\+\+|clang|g\+\+|gcc/ { s/ ; if .*//; s/.* -c ([^ ]+).*/\1/p }') ; do \
-		echo "[cf] $${i/$(subst /,\/,$(ROOT))\//}" ; clang-format --style=file -i $$i ; done
+	declare -A files ; \
+	for i in $$($(MAKE) -n -B $(mfwCLANG_FORMAT_TARGET)| $(SED) -n -r -e '/^clang\+\+|clang|g\+\+|gcc/ { s/.* ([^ ]*\.d).*/\1/p }') ; do \
+		if test -e $$i ; then \
+			for j in $$(cat $$i | sed -e 's/^[^ ]*://' -e 's/\\$$//' -e 's/ /\n/g' -e '/.*\/externals\//d' | sed -e '/^$$/d') ; do \
+				files[$$j]=1 ; \
+			done ; \
+		fi ; \
+	done ; \
+	for j in $$(<<< $${!files[@]} tr ' ' '\n' | sort) ; do \
+		k=$$(realpath --relative-to $$PWD $${j/\$$\(ROOT\)\//$(ROOT)\/}) ; \
+		if test -e $$k ; then \
+			echo "[cf] $$k" ; clang-format --style=file -i $$k ; \
+		fi ; \
+	done
 
 json: compile_commands.json
 compile_commands.json: $(mfwOBASE)/compile_commands.json
