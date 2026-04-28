@@ -160,8 +160,8 @@ $(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
 
 $(OUT)/$(mfwLIB)/%.a: | $(OUT)/.folders
 	@echo "[ar]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
-	$(AR) $(ARFLAGS) $@ $^ || ( rm -f $@ ; exit 1)
-#	rm -f $@ ; $(AR) $(ARFLAGS) $@ $^ || ( rm -f $@ ; exit 1)
+#	$(AR) $(ARFLAGS) $@ $^ || ( rm -f $@ ; exit 1)
+	rm -f $@ ; $(AR) $(ARFLAGS) $@ $^ || ( rm -f $@ ; exit 1)
 # default if LINK.cc = $(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 	@echo "[ld]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
