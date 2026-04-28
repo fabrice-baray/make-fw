@@ -165,6 +165,10 @@ $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 
 all:
 
+clang-format:
+	@for i in $$($(MAKE) -n -B| $(SED) -n -r -e '/^clang\+\+|clang|g\+\+|gcc/ { s/ ; if .*//; s/.* -c ([^ ]+).*/\1/p }') ; do \
+		echo "[cf] $${i/$(subst /,\/,$(ROOT))\//}" ; clang-format --style=file -i $$i ; done
+
 json: compile_commands.json
 compile_commands.json: $(mfwOBASE)/compile_commands.json
 
