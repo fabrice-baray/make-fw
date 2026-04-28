@@ -35,6 +35,9 @@ mfwTSAN?=tsan
 ifeq (,$(filter $(mfwDBG) $(mfwOPT) $(mfwASAN) $(mfwTSAN),$(MODE)))
   $(error MODE should be either $(mfwDBG), $(mfwOPT), $(mfwASAN) or $(mfwTSAN))
 endif
+ifneq (,$(filter $(mfwDBG) $(mfwOPT) $(mfwASAN) $(mfwTSAN),$(mode)))
+  $(error mode variable should be used uppercase: MODE)
+endif
 
 # default compilation flag
 mfwCFLAGS?=-Wall -I$(ROOT)
