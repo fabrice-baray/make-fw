@@ -91,15 +91,16 @@ OUT:=$(mfwOBASE)/$(MODE)
 #   fails, the worst case dependency is missing and will be re-generated the next
 #   compilation.
 mfwDEPFLAGS = -MT $@ -MMD -MP -MF $(OUT)/$(mfwDEP)/$*.Td
+mfwENDCOMPILE = || ( rm -f $(OUT)/$(mfwDEP)/$*.Td $(OUT)/$(mfwDEP)/$*.d ; exit 1)
 mfwPOSTCOMPILE = if test -e $(OUT)/$(mfwDEP)/$*.Td ; then \
                    if [[ "$(ROOT)" == "." ]] ; then \
                      sed -e 's+^\([^ ]\)+$$(ROOT)/\1+' -e 's+ \([^ \\]\)+ $$(ROOT)/\1+g' $(OUT)/$(mfwDEP)/$*.Td > $(OUT)/$(mfwDEP)/$*.d ; \
                    else \
-                     sed -e 's+../../+$$(ROOT)/+g' $(OUT)/$(mfwDEP)/$*.Td > $(OUT)/$(mfwDEP)/$*.d ; \
+                     sed -e "s+^$(subst .,\.,$(ROOT))/+\$$(ROOT)/+" -e "s+ $(subst .,\.,$(ROOT))/+ \$$(ROOT)/+g" $(OUT)/$(mfwDEP)/$*.Td > $(OUT)/$(mfwDEP)/$*.d ; \
                    fi ; \
                    rm -f $(OUT)/$(mfwDEP)/$*.Td ; \
                    touch -c $@ ; \
-                 fi ; true
+                 fi
 
 # .o target will be dependent of the dependencies file in case this last one is
 # deleted. Then an empty fake rule is added for it to avoid a "no rule to make
@@ -138,16 +139,19 @@ $(mfwOBASE)/$(mfwTSAN)/$(mfwBIN)/%: LDFLAGS+=-L $(mfwOBASE)/$(mfwTSAN)/$(mfwLIB)
 # order dependencies are obj and dep folders
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.c $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
 	@echo "[cc]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
-	$(COMPILE.c) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
+	$(COMPILE.c) $< $(mfwDEPFLAGS) -o $@ $(mfwENDCOMPILE)
+	$(mfwPOSTCOMPILE)
 
 # default is COMPILE.cc = $(CXX) $(CXXFLAGS) $(CPPFLAGS) $(TARGET_ARCH) -c
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cc $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
 	@echo "[c+]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
-	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
+	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ $(mfwENDCOMPILE)
+	$(mfwPOSTCOMPILE)
 
 $(OUT)/$(mfwOBJ)/%.o: $(ROOT)/%.cpp $(OUT)/$(mfwDEP)/%.d | $$(@D)/.folder $(OUT)/$(mfwDEP)/$$(dir $$(*)).folder
 	@echo "[c+]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
-	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ ; $(mfwPOSTCOMPILE)
+	$(COMPILE.cc) $< $(mfwDEPFLAGS) -o $@ $(mfwENDCOMPILE)
+	$(mfwPOSTCOMPILE)
 
 # default is LINK.cc = $(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 $(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
@@ -156,8 +160,8 @@ $(OUT)/$(mfwLIB)/%.so: | $(OUT)/.folders
 
 $(OUT)/$(mfwLIB)/%.a: | $(OUT)/.folders
 	@echo "[ar]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
-	$(AR) $(ARFLAGS) $@ $^
-
+	$(AR) $(ARFLAGS) $@ $^ || ( rm -f $@ ; exit 1)
+#	rm -f $@ ; $(AR) $(ARFLAGS) $@ $^ || ( rm -f $@ ; exit 1)
 # default if LINK.cc = $(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(TARGET_ARCH)
 $(OUT)/$(mfwBIN)/%: | $(OUT)/.folders
 	@echo "[ld]" $(patsubst $(patsubst ./%,%,$(mfwOBASE))/%,%,$@)
