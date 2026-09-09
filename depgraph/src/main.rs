@@ -149,7 +149,7 @@ fn print_usage() {
     eprintln!("Usage: depgraph <input_folder> [output.dot] [--verbose] [--reduce]");
     eprintln!(
         "  --reduce   Apply a transitive reduction: drop an edge A -> B if B is\n\
-         \             still reachable from A through some other path of edges."
+         still reachable from A through some other path of edges."
     );
 }
 

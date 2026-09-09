@@ -164,3 +164,23 @@ RS
 
 Readme
 Document·MD 
+
+--------------------------------------------------------------------------------
+the line 152 fails complation with the following message:
+error: unknown character escape:  
+   --> src/main.rs:152:11
+    |
+152 |          \             still reachable from A through some other path of edges."
+    |           ^ unknown character escape
+
+can you fix it?
+
+Viewed a file
+Found it — that \ followed by spaces isn't a valid Rust escape (that trick works in some languages but not Rust). Let me just use a plain string without the line-continuation gimmick.
+
+Ran 3 commands, edited a file, read a file
+Fixed. That was a leftover indentation trick (\ followed by spaces) that isn't valid in Rust — \ must be followed immediately by a real escape character (n, t, \, a quote, etc.), not a space. I replaced it with a plain continued string. Sorry for shipping that without catching it — since I still have no Rust toolchain in this sandbox, these compile errors are exactly the kind of thing I can't catch myself, so thanks for running the build and flagging it.
+
+
+Main
+RS 
