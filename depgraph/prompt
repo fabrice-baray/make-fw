@@ -146,3 +146,21 @@ main() now calls it per file and merges the result into the running edges set �
 
 Main
 RS 
+
+
+--------------------------------------------------------------------------------
+can you add an option to apply a transitive reduction of the generated graph?
+
+Edited 6 files, viewed 3 files, and 3 more tools
+Added a --reduce flag. It calls a new transitive_reduction() on the aggregated edge set before rendering: for each edge A -> B (in a fixed, sorted order for reproducibility), it temporarily removes the edge and checks whether B is still reachable from A through the remaining edges — if so, the edge is redundant and stays dropped; otherwise it's put back.
+
+One caveat worth being aware of: this is a true, unique minimal reduction only for an acyclic graph. Your folder graph can have cycles (a bidirectional pair being the simplest case), and cyclic graphs don't have one single "correct" minimal reduction — the greedy, order-dependent approach here always preserves reachability, but which specific edge survives inside a cycle-with-a-shortcut can vary. A bare A <-> B pair with no other connecting path is always left untouched either way, since removing either direction would break reachability.
+
+Added four tests: dropping a direct shortcut, dropping a diamond shortcut, keeping a shortcut-free cycle intact, and verifying reachability is preserved when a shortcut feeds into a cycle.
+
+
+Main
+RS 
+
+Readme
+Document·MD 

@@ -8,7 +8,7 @@
 //! single red bidirectional edge instead of two black ones.
 //!
 //! Usage:
-//!     depgraph <input_folder> [output.dot] [--verbose]
+//!     depgraph <input_folder> [output.dot] [--verbose] [--reduce]
 //!
 //! Assumptions (see README.md for details):
 //!   - Paths recorded inside .d files may contain an unexpanded build
@@ -26,8 +26,12 @@
 //!   - A dependency whose path contains none of the known first-level
 //!     subfolder names (e.g. a system header like /usr/include/stdio.h) is
 //!     ignored.
+//!   - `--reduce` applies a transitive reduction to the folder-level edge
+//!     set before rendering: an edge A -> B is dropped if B is still
+//!     reachable from A through some other path of edges. See
+//!     [`transitive_reduction`] for the cycle caveat.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
 use std::io;
@@ -38,6 +42,7 @@ struct Config {
     root: PathBuf,
     output_path: PathBuf,
     verbose: bool,
+    reduce: bool,
 }
 
 fn main() {
@@ -105,6 +110,18 @@ fn main() {
         eprintln!("{parse_errors} file(s) failed to parse");
     }
 
+    let edges_before_reduction = edges.len();
+    if config.reduce {
+        edges = transitive_reduction(&edges);
+        if config.verbose {
+            eprintln!(
+                "Transitive reduction: {} edge(s) -> {} edge(s)",
+                edges_before_reduction,
+                edges.len()
+            );
+        }
+    }
+
     let dot = render_dot(&nodes, &edges);
 
     if let Err(e) = fs::write(&config.output_path, &dot) {
@@ -116,21 +133,37 @@ fn main() {
     }
 
     println!(
-        "Graph written to '{}' ({} node(s), {} edge(s) before merging)",
+        "Graph written to '{}' ({} node(s), {} edge(s) before merging{})",
         config.output_path.display(),
         nodes.len(),
-        edges.len()
+        edges.len(),
+        if config.reduce {
+            format!(", reduced from {edges_before_reduction}")
+        } else {
+            String::new()
+        }
     );
 }
 
 fn print_usage() {
-    eprintln!("Usage: depgraph <input_folder> [output.dot] [--verbose]");
+    eprintln!("Usage: depgraph <input_folder> [output.dot] [--verbose] [--reduce]");
+    eprintln!(
+        "  --reduce   Apply a transitive reduction: drop an edge A -> B if B is\n\
+         \             still reachable from A through some other path of edges."
+    );
 }
 
 fn parse_args() -> Result<Config, String> {
     let mut args: Vec<String> = env::args().skip(1).collect();
 
     let verbose = if let Some(pos) = args.iter().position(|a| a == "--verbose" || a == "-v") {
+        args.remove(pos);
+        true
+    } else {
+        false
+    };
+
+    let reduce = if let Some(pos) = args.iter().position(|a| a == "--reduce") {
         args.remove(pos);
         true
     } else {
@@ -151,6 +184,7 @@ fn parse_args() -> Result<Config, String> {
         root,
         output_path,
         verbose,
+        reduce,
     })
 }
 
@@ -331,6 +365,75 @@ fn edges_from_pairs(pairs: &[(String, String)], nodes: &[String]) -> HashSet<(St
     edges
 }
 
+/// Applies a transitive reduction to a directed edge set: an edge A -> B is
+/// dropped whenever B is still reachable from A using some other path
+/// through the remaining edges, since such an edge adds no reachability
+/// information beyond what the rest of the graph already implies.
+///
+/// For a DAG this produces the unique minimal graph with the same
+/// reachability relation as the input. **Caveat:** this folder graph can
+/// contain cycles (most simply, a bidirectional pair A <-> B). A graph with
+/// cycles has no single well-defined minimal reduction, so edges are
+/// processed in a fixed, deterministic (sorted) order and each is dropped
+/// greedily if it's currently redundant; the result is always a valid
+/// reduction (same reachability as the input) but, inside a cycle, which
+/// specific edges survive can depend on that processing order. A minimal
+/// cycle with no shortcut edges (e.g. a lone A <-> B pair with no other
+/// path between them) is always left untouched, since dropping either
+/// direction would break reachability.
+fn transitive_reduction(edges: &HashSet<(String, String)>) -> HashSet<(String, String)> {
+    let mut adjacency: HashMap<String, HashSet<String>> = HashMap::new();
+    for (a, b) in edges {
+        adjacency.entry(a.clone()).or_default().insert(b.clone());
+    }
+
+    // Deterministic order so the result doesn't depend on hash iteration.
+    let mut sorted_edges: Vec<(String, String)> = edges.iter().cloned().collect();
+    sorted_edges.sort();
+
+    for (u, v) in sorted_edges {
+        if let Some(successors) = adjacency.get_mut(&u) {
+            successors.remove(&v);
+        }
+        if !is_reachable(&adjacency, &u, &v) {
+            // Removing this edge broke reachability: it was load-bearing,
+            // so put it back.
+            adjacency.entry(u).or_default().insert(v);
+        }
+        // Otherwise leave it removed: some other path already covers it.
+    }
+
+    let mut result = HashSet::new();
+    for (u, successors) in &adjacency {
+        for v in successors {
+            result.insert((u.clone(), v.clone()));
+        }
+    }
+    result
+}
+
+/// Depth-first reachability check: is `target` reachable from `start`
+/// using the edges currently in `adjacency`?
+fn is_reachable(adjacency: &HashMap<String, HashSet<String>>, start: &str, target: &str) -> bool {
+    let mut visited: HashSet<&str> = HashSet::new();
+    let mut stack: Vec<&str> = vec![start];
+    visited.insert(start);
+
+    while let Some(node) = stack.pop() {
+        if let Some(successors) = adjacency.get(node) {
+            for next in successors {
+                if next == target {
+                    return true;
+                }
+                if visited.insert(next.as_str()) {
+                    stack.push(next.as_str());
+                }
+            }
+        }
+    }
+    false
+}
+
 fn escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -463,6 +566,61 @@ mod tests {
         let edges = edges_from_pairs(&pairs, &nodes);
         assert_eq!(edges.len(), 1);
         assert!(edges.contains(&("moduleA".to_string(), "moduleB".to_string())));
+    }
+
+    fn edge_set(pairs: &[(&str, &str)]) -> HashSet<(String, String)> {
+        pairs
+            .iter()
+            .map(|(a, b)| (a.to_string(), b.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn transitive_reduction_drops_direct_shortcut() {
+        // A -> C is redundant because A -> B -> C already reaches C.
+        let edges = edge_set(&[("A", "B"), ("B", "C"), ("A", "C")]);
+        let reduced = transitive_reduction(&edges);
+        assert_eq!(reduced, edge_set(&[("A", "B"), ("B", "C")]));
+    }
+
+    #[test]
+    fn transitive_reduction_drops_diamond_shortcut() {
+        // A -> D is redundant: A can already reach D via B or via C.
+        let edges = edge_set(&[("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("A", "D")]);
+        let reduced = transitive_reduction(&edges);
+        assert_eq!(
+            reduced,
+            edge_set(&[("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+        );
+    }
+
+    #[test]
+    fn transitive_reduction_keeps_minimal_cycle() {
+        // A lone bidirectional pair has no alternate path in either
+        // direction, so both edges must be kept.
+        let edges = edge_set(&[("A", "B"), ("B", "A")]);
+        let reduced = transitive_reduction(&edges);
+        assert_eq!(reduced, edges);
+    }
+
+    #[test]
+    fn transitive_reduction_preserves_reachability_with_shortcut_into_cycle() {
+        // A -> B is redundant here: A can already reach B via A -> C -> B.
+        let edges = edge_set(&[("A", "B"), ("B", "A"), ("A", "C"), ("C", "B")]);
+        let reduced = transitive_reduction(&edges);
+        // Whatever survives, A must still reach B and B must still reach A,
+        // matching the original graph's reachability.
+        let adjacency: HashMap<String, HashSet<String>> = {
+            let mut m: HashMap<String, HashSet<String>> = HashMap::new();
+            for (a, b) in &reduced {
+                m.entry(a.clone()).or_default().insert(b.clone());
+            }
+            m
+        };
+        assert!(is_reachable(&adjacency, "A", "B"));
+        assert!(is_reachable(&adjacency, "B", "A"));
+        // And the direct A -> B shortcut should indeed have been dropped.
+        assert!(!reduced.contains(&("A".to_string(), "B".to_string())));
     }
 
     #[test]

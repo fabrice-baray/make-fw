@@ -32,6 +32,21 @@ depgraph <input_folder> [output.dot] [--verbose]
 - `output.dot`: optional, defaults to `graph.dot` in the current directory.
 - `--verbose` / `-v`: print each discovered folder-to-folder edge as it's
   found, and a count of parsed `.d` files, to stderr.
+- `--reduce`: apply a transitive reduction before writing the graph — an
+  edge A -> B is dropped if B is still reachable from A through some other
+  path of edges, since it adds no information beyond what the rest of the
+  graph already implies. Useful for decluttering a graph where, say, a
+  top-level module depends on many things both directly and indirectly.
+
+  For an acyclic graph this always gives the unique minimal graph with the
+  same reachability. This folder graph can contain cycles though (most
+  simply, a bidirectional pair), and a cyclic graph has no single
+  well-defined minimal reduction — edges are processed in a fixed order and
+  dropped greedily when redundant, which always preserves reachability but
+  means, inside a cycle with a shortcut, which specific edge survives can
+  be order-dependent. A minimal cycle with no shortcut (a lone A <-> B pair
+  and nothing else connecting them) is always left alone, since dropping
+  either direction would break reachability.
 
 Then render it, e.g.:
 
@@ -76,7 +91,10 @@ cargo test
 Unit tests cover: token splitting, escaped spaces, the drive-letter-colon
 edge case, node-name classification (including the `$(ROOT)` case, deeper
 nesting, and not matching a bare filename), multi-line rule parsing with
-continuations, and the red-bidirectional-edge merging logic.
+continuations, the red-bidirectional-edge merging logic, and transitive
+reduction (dropping a direct shortcut, dropping a diamond shortcut,
+keeping a minimal cycle with no shortcut, and preserving reachability when
+a shortcut feeds into a cycle).
 
 ## Trying it on a sample tree
 
