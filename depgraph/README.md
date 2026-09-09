@@ -89,11 +89,12 @@ cat > sample/moduleB/b.d <<'EOF'
 $(ROOT)/sample/moduleB/b.o: $(ROOT)/sample/moduleB/b.c $(ROOT)/sample/moduleA/a.h
 EOF
 cat > sample/moduleC/c.d <<'EOF'
-$(ROOT)/sample/moduleC/c.o: $(ROOT)/sample/moduleC/c.c $(ROOT)/sample/moduleA/a.h
+$(ROOT)/sample/moduleC/c.o: $(ROOT)/sample/moduleC/c.c $(ROOT)/sample/moduleA/a.h $(ROOT)/sample/moduleB/b.h
 EOF
 ```
 
 Running `depgraph sample` should produce moduleA<->moduleB as a **red**
-bidirectional edge, and moduleC -> moduleA as a plain black edge — note
-that `$(ROOT)` here is never resolved to a real path; it's simply ignored
-since `moduleA`/`moduleB`/`moduleC` are found among the path components.
+bidirectional edge, moduleC -> moduleA as a plain black edge, and
+moduleC -> moduleB as another plain black edge — note that `$(ROOT)` here
+is never resolved to a real path; it's simply ignored since
+`moduleA`/`moduleB`/`moduleC` are found among the path components.
