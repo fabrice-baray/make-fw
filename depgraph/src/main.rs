@@ -11,20 +11,27 @@
 //!     depgraph <input_folder> [output.dot] [--verbose]
 //!
 //! Assumptions (see README.md for details):
-//!   - Paths recorded inside .d files are absolute (as confirmed by the
-//!     project owner). Relative paths are still handled as a fallback,
-//!     resolved against the directory containing the .d file.
+//!   - Paths recorded inside .d files may contain an unexpanded build
+//!     variable such as `$(ROOT)/subfolder/file.h` (gcc records exactly
+//!     what was on its command line, and some build systems pass paths
+//!     that still contain a make variable at that point). depgraph never
+//!     needs to know what `$(ROOT)` actually expands to: since every
+//!     dependency path is guaranteed to live somewhere below it, a file's
+//!     top-level folder is identified by looking for one of the known
+//!     first-level subfolder *names* among the path's components, rather
+//!     than by resolving the path to an absolute filesystem location.
 //!   - A dependency where target and prerequisite fall in the same
 //!     first-level subfolder is ignored (it's an internal edge, not a
 //!     between-folder edge).
-//!   - A dependency pointing outside the input tree entirely (e.g. a system
-//!     header like /usr/include/stdio.h) is ignored.
+//!   - A dependency whose path contains none of the known first-level
+//!     subfolder names (e.g. a system header like /usr/include/stdio.h) is
+//!     ignored.
 
 use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::io;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::process;
 
 struct Config {
@@ -48,18 +55,10 @@ fn main() {
         process::exit(1);
     }
 
-    let root = fs::canonicalize(&config.root).unwrap_or_else(|e| {
-        eprintln!(
-            "Error: could not canonicalize '{}': {e}",
-            config.root.display()
-        );
-        process::exit(1);
-    });
-
-    let nodes = match first_level_subfolders(&root) {
+    let nodes = match first_level_subfolders(&config.root) {
         Ok(n) => n,
         Err(e) => {
-            eprintln!("Error reading '{}': {e}", root.display());
+            eprintln!("Error reading '{}': {e}", config.root.display());
             process::exit(1);
         }
     };
@@ -67,11 +66,11 @@ fn main() {
     if nodes.is_empty() {
         eprintln!(
             "Warning: no first-level subfolders found under '{}'",
-            root.display()
+            config.root.display()
         );
     }
 
-    let dep_files = find_dep_files(&root);
+    let dep_files = find_dep_files(&config.root);
     if config.verbose {
         eprintln!("Found {} dependency file(s)", dep_files.len());
     }
@@ -83,22 +82,21 @@ fn main() {
         match parse_dep_file(dep_file) {
             Ok(pairs) => {
                 for (target_raw, prereq_raw) in pairs {
-                    let target_abs = resolve_path(&target_raw, dep_file);
-                    let prereq_abs = resolve_path(&prereq_raw, dep_file);
-
-                    let target_folder = top_level_folder(&target_abs, &root);
-                    let prereq_folder = top_level_folder(&prereq_abs, &root);
+                    let target_folder = classify(&target_raw, &nodes);
+                    let prereq_folder = classify(&prereq_raw, &nodes);
 
                     match (target_folder, prereq_folder) {
                         (Some(tf), Some(pf)) if tf != pf => {
-                            if config.verbose && edges.insert((tf.clone(), pf.clone())) {
-                                eprintln!("edge: {tf} -> {pf}  ({} -> {})", target_raw, prereq_raw);
-                            } else {
-                                edges.insert((tf, pf));
+                            let is_new = !edges.contains(&(tf.clone(), pf.clone()));
+                            edges.insert((tf.clone(), pf.clone()));
+                            if config.verbose && is_new {
+                                eprintln!(
+                                    "edge: {tf} -> {pf}  ({target_raw} -> {prereq_raw})"
+                                );
                             }
                         }
-                        // Same folder, or one/both sides outside the tree:
-                        // ignored silently, per spec.
+                        // Same folder, or one/both sides didn't match any
+                        // known node name: ignored silently, per spec.
                         _ => {}
                     }
                 }
@@ -204,10 +202,10 @@ fn find_dep_files(root: &Path) -> Vec<PathBuf> {
 ///
 /// Format looks like:
 /// ```text
-/// foo.o: /abs/path/foo.c /abs/path/foo.h \
-///   /abs/path/bar.h
-/// /abs/path/foo.h:
-/// /abs/path/bar.h:
+/// foo.o: $(ROOT)/moduleA/foo.c $(ROOT)/moduleA/foo.h \
+///   $(ROOT)/moduleB/bar.h
+/// $(ROOT)/moduleA/foo.h:
+/// $(ROOT)/moduleB/bar.h:
 /// ```
 /// (the trailing empty rules come from `-MP` and are harmless here since
 /// they have no prerequisites).
@@ -287,49 +285,34 @@ fn split_make_tokens(s: &str) -> Vec<String> {
     tokens
 }
 
-/// Resolves a path recorded in a .d file. Per project spec these are
-/// expected to already be absolute; relative paths (should they occur) are
-/// resolved against the directory containing the .d file as a best-effort
-/// fallback.
-fn resolve_path(raw: &str, dep_file: &Path) -> PathBuf {
-    let p = Path::new(raw);
-    let candidate = if p.is_absolute() {
-        p.to_path_buf()
-    } else {
-        dep_file
-            .parent()
-            .map(|d| d.join(p))
-            .unwrap_or_else(|| p.to_path_buf())
-    };
-    normalize(&candidate)
-}
+/// Determines which known first-level node folder a raw dependency path
+/// belongs to.
+///
+/// Rather than resolving `raw_path` to an absolute filesystem path (which
+/// would require knowing the value of any build variable like `$(ROOT)` it
+/// might still contain), this looks for one of the known node names among
+/// the path's directory components. Since every dependency path is
+/// guaranteed to live somewhere below such a variable, matching by name is
+/// sufficient and avoids needing the variable's actual value at all.
+///
+/// The left-most matching component wins, and the final component (the
+/// filename itself) is never considered a folder match.
+fn classify(raw_path: &str, nodes: &[String]) -> Option<String> {
+    let components: Vec<&str> = raw_path
+        .split(['/', '\\'])
+        .filter(|c| !c.is_empty())
+        .collect();
 
-/// Lexically normalizes `.` and `..` components without requiring the path
-/// to exist on disk (headers referenced in a .d file may have since been
-/// deleted or moved).
-fn normalize(path: &Path) -> PathBuf {
-    let mut result = PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::ParentDir => {
-                result.pop();
-            }
-            Component::CurDir => {}
-            other => result.push(other.as_os_str()),
+    if components.len() < 2 {
+        return None; // no directory component at all, just a bare filename
+    }
+
+    for component in &components[..components.len() - 1] {
+        if let Some(node) = nodes.iter().find(|n| n.as_str() == *component) {
+            return Some(node.clone());
         }
     }
-    result
-}
-
-/// Returns the first-level subfolder name of `root` that `path` lives
-/// under, or `None` if `path` is not inside `root` at all (e.g. a system
-/// header).
-fn top_level_folder(path: &Path, root: &Path) -> Option<String> {
-    let rel = path.strip_prefix(root).ok()?;
-    let mut components = rel.components();
-    let first = components.next()?;
-    // If path == root exactly there is no subfolder component.
-    Some(first.as_os_str().to_string_lossy().to_string())
+    None
 }
 
 fn escape(s: &str) -> String {
@@ -385,14 +368,14 @@ mod tests {
 
     #[test]
     fn splits_simple_tokens() {
-        let tokens = split_make_tokens(" /a/b.c /a/b.h ");
-        assert_eq!(tokens, vec!["/a/b.c", "/a/b.h"]);
+        let tokens = split_make_tokens(" $(ROOT)/a/b.c $(ROOT)/a/b.h ");
+        assert_eq!(tokens, vec!["$(ROOT)/a/b.c", "$(ROOT)/a/b.h"]);
     }
 
     #[test]
     fn splits_tokens_with_escaped_space() {
-        let tokens = split_make_tokens(r"/a/my\ file.c /a/b.h");
-        assert_eq!(tokens, vec!["/a/my file.c", "/a/b.h"]);
+        let tokens = split_make_tokens(r"$(ROOT)/my\ file.c $(ROOT)/b.h");
+        assert_eq!(tokens, vec!["$(ROOT)/my file.c", "$(ROOT)/b.h"]);
     }
 
     #[test]
@@ -402,22 +385,43 @@ mod tests {
     }
 
     #[test]
-    fn top_level_folder_detects_correct_subfolder() {
-        let root = Path::new("/proj");
+    fn classify_finds_node_name_after_root_variable() {
+        let nodes = vec!["moduleA".to_string(), "moduleB".to_string()];
         assert_eq!(
-            top_level_folder(Path::new("/proj/moduleA/src/a.c"), root),
+            classify("$(ROOT)/moduleA/src/a.c", &nodes),
             Some("moduleA".to_string())
         );
-        assert_eq!(top_level_folder(Path::new("/usr/include/stdio.h"), root), None);
-        assert_eq!(top_level_folder(Path::new("/proj"), root), None);
+        assert_eq!(
+            classify("${ROOT}/moduleB/inc/b.h", &nodes),
+            Some("moduleB".to_string())
+        );
     }
 
     #[test]
-    fn normalize_collapses_parent_dirs() {
+    fn classify_finds_node_name_at_arbitrary_depth() {
+        // $(ROOT) can be several levels above the scanned folder; the node
+        // name just needs to appear somewhere among the components.
+        let nodes = vec!["moduleA".to_string()];
         assert_eq!(
-            normalize(Path::new("/proj/moduleA/../moduleB/x.h")),
-            PathBuf::from("/proj/moduleB/x.h")
+            classify("$(ROOT)/some/ancestor/path/moduleA/src/a.c", &nodes),
+            Some("moduleA".to_string())
         );
+    }
+
+    #[test]
+    fn classify_ignores_paths_with_no_known_node() {
+        let nodes = vec!["moduleA".to_string(), "moduleB".to_string()];
+        assert_eq!(classify("/usr/include/stdio.h", &nodes), None);
+    }
+
+    #[test]
+    fn classify_does_not_match_the_filename_itself() {
+        // A file literally named "moduleA" (no extension) must not be
+        // mistaken for the folder "moduleA": since "other" isn't a known
+        // node, this should fall through to None rather than matching the
+        // filename component "moduleA".
+        let nodes = vec!["moduleA".to_string()];
+        assert_eq!(classify("$(ROOT)/other/moduleA", &nodes), None);
     }
 
     #[test]
@@ -427,18 +431,18 @@ mod tests {
         let dep_path = dir.join("foo.d");
         fs::write(
             &dep_path,
-            "/proj/moduleA/foo.o: /proj/moduleA/foo.c /proj/moduleA/foo.h \\\n  /proj/moduleB/bar.h\n/proj/moduleB/bar.h:\n",
+            "$(ROOT)/moduleA/foo.o: $(ROOT)/moduleA/foo.c $(ROOT)/moduleA/foo.h \\\n  $(ROOT)/moduleB/bar.h\n$(ROOT)/moduleB/bar.h:\n",
         )
         .unwrap();
 
         let pairs = parse_dep_file(&dep_path).unwrap();
         assert!(pairs.contains(&(
-            "/proj/moduleA/foo.o".to_string(),
-            "/proj/moduleA/foo.c".to_string()
+            "$(ROOT)/moduleA/foo.o".to_string(),
+            "$(ROOT)/moduleA/foo.c".to_string()
         )));
         assert!(pairs.contains(&(
-            "/proj/moduleA/foo.o".to_string(),
-            "/proj/moduleB/bar.h".to_string()
+            "$(ROOT)/moduleA/foo.o".to_string(),
+            "$(ROOT)/moduleB/bar.h".to_string()
         )));
 
         let _ = fs::remove_dir_all(&dir);
