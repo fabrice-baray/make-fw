@@ -81,23 +81,16 @@ fn main() {
     for dep_file in &dep_files {
         match parse_dep_file(dep_file) {
             Ok(pairs) => {
-                for (target_raw, prereq_raw) in pairs {
-                    let target_folder = classify(&target_raw, &nodes);
-                    let prereq_folder = classify(&prereq_raw, &nodes);
-
-                    match (target_folder, prereq_folder) {
-                        (Some(tf), Some(pf)) if tf != pf => {
-                            let is_new = !edges.contains(&(tf.clone(), pf.clone()));
-                            edges.insert((tf.clone(), pf.clone()));
-                            if config.verbose && is_new {
-                                eprintln!(
-                                    "edge: {tf} -> {pf}  ({target_raw} -> {prereq_raw})"
-                                );
-                            }
-                        }
-                        // Same folder, or one/both sides didn't match any
-                        // known node name: ignored silently, per spec.
-                        _ => {}
+                let file_edges = edges_from_pairs(&pairs, &nodes);
+                for edge in file_edges {
+                    let is_new = edges.insert(edge.clone());
+                    if config.verbose && is_new {
+                        eprintln!(
+                            "edge: {} -> {}  (from {})",
+                            edge.0,
+                            edge.1,
+                            dep_file.display()
+                        );
                     }
                 }
             }
@@ -315,6 +308,29 @@ fn classify(raw_path: &str, nodes: &[String]) -> Option<String> {
     None
 }
 
+/// Converts the (target, prerequisite) pairs returned by [`parse_dep_file`]
+/// for a single `.d` file into a set of top-level-folder edges.
+///
+/// Each pair's target and prerequisite are classified with [`classify`];
+/// a pair is turned into an edge `target_folder -> prereq_folder` only
+/// when both sides resolve to a *different* known node. Pairs where either
+/// side doesn't match any known node (outside the tree), or where both
+/// sides match the same node (an internal, same-folder dependency), are
+/// dropped.
+fn edges_from_pairs(pairs: &[(String, String)], nodes: &[String]) -> HashSet<(String, String)> {
+    let mut edges = HashSet::new();
+    for (target_raw, prereq_raw) in pairs {
+        let target_folder = classify(target_raw, nodes);
+        let prereq_folder = classify(prereq_raw, nodes);
+        if let (Some(tf), Some(pf)) = (target_folder, prereq_folder) {
+            if tf != pf {
+                edges.insert((tf, pf));
+            }
+        }
+    }
+    edges
+}
+
 fn escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -422,6 +438,31 @@ mod tests {
         // filename component "moduleA".
         let nodes = vec!["moduleA".to_string()];
         assert_eq!(classify("$(ROOT)/other/moduleA", &nodes), None);
+    }
+
+    #[test]
+    fn edges_from_pairs_drops_same_folder_and_unmatched_pairs() {
+        let nodes = vec!["moduleA".to_string(), "moduleB".to_string()];
+        let pairs = vec![
+            (
+                "$(ROOT)/moduleA/foo.o".to_string(),
+                "$(ROOT)/moduleB/bar.h".to_string(),
+            ),
+            (
+                // same folder on both sides: not an edge
+                "$(ROOT)/moduleA/foo.o".to_string(),
+                "$(ROOT)/moduleA/foo.c".to_string(),
+            ),
+            (
+                // prerequisite outside the tree: not an edge
+                "$(ROOT)/moduleA/foo.o".to_string(),
+                "/usr/include/stdio.h".to_string(),
+            ),
+        ];
+
+        let edges = edges_from_pairs(&pairs, &nodes);
+        assert_eq!(edges.len(), 1);
+        assert!(edges.contains(&("moduleA".to_string(), "moduleB".to_string())));
     }
 
     #[test]

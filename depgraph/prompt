@@ -134,3 +134,15 @@ Added moduleB/b.h as a second prerequisite in moduleC/c.d, and updated the expec
 Readme
 Document·MD 
 
+
+--------------------------------------------------------------------------------
+in main.rs, can you create a function that takes as input the result of the parsing returned by parse_dep_file, and return the edges hashset?
+
+Edited 3 files, ran 2 commands, and 2 more tools
+Added edges_from_pairs(pairs: &[(String, String)], nodes: &[String]) -> HashSet<(String, String)>, right after classify. It takes exactly what parse_dep_file returns for one file, runs each pair through classify, and keeps only the pairs where both sides resolve to different known nodes.
+
+main() now calls it per file and merges the result into the running edges set — the verbose logging changed slightly since it no longer has the individual raw path text handy (it now logs which .d file each new edge came from instead). I also added edges_from_pairs_drops_same_folder_and_unmatched_pairs to the test module.
+
+
+Main
+RS 
