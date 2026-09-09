@@ -325,8 +325,8 @@ fn escape(s: &str) -> String {
 fn render_dot(nodes: &[String], edges: &HashSet<(String, String)>) -> String {
     let mut dot = String::new();
     dot.push_str("digraph dependencies {\n");
-    dot.push_str("    rankdir=LR;\n");
-    dot.push_str("    node [shape=box];\n\n");
+    dot.push_str("    rankdir=TB;\n");
+    dot.push_str("    node [shape=ellipse];\n\n");
 
     for node in nodes {
         dot.push_str(&format!("    \"{}\";\n", escape(node)));

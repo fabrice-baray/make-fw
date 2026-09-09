@@ -39,6 +39,12 @@ Then render it, e.g.:
 dot -Tpng graph.dot -o graph.png
 ```
 
+The graph is laid out top-to-bottom (`rankdir=TB`): since edge A -> B means
+"A depends on B", folders with no incoming dependency edges naturally sit
+at the top, with their dependencies below. Nodes are drawn as ovals
+(`shape=ellipse`, Graphviz's default oval shape, which sizes naturally to
+fit each label).
+
 ## Assumptions
 
 1. **Paths in `.d` files may still contain an unexpanded build variable**,
