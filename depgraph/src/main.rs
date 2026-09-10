@@ -8,8 +8,7 @@
 //! edge instead of two black ones.
 //!
 //! Usage:
-//!     depgraph <input_folder> [output.dot] [--verbose] [--reduce]
-//!              [--level N] [--edge-mode flat|hierarchical]
+//!     depgraph <input_folder> [output.dot] [--verbose] [--reduce] [--level N]
 //!
 //! ## Levels
 //!
@@ -23,18 +22,9 @@
 //! recognized child subfolders, is dropped rather than attributed to the
 //! folder itself.
 //!
-//! ## Edge modes
-//!
-//! `--edge-mode` controls how a cross-folder dependency is placed once
-//! folders are broken into multiple levels:
-//!   - `flat` (default): the edge connects the deepest known folder on
-//!     each side directly, however far apart they are in the hierarchy.
-//!   - `hierarchical`: the edge is drawn between the two folders at the
-//!     point where their paths first diverge. A dependency from
-//!     `A/sub1/file` to `B/sub2/file` is drawn as `A -> B` (they diverge
-//!     immediately). A dependency from `A/sub1/file` to `A/sub2/file` is
-//!     drawn as `A/sub1 -> A/sub2`, nested inside cluster `A` (they share
-//!     `A` and diverge one level down). See [`hierarchical_edge`].
+//! Edges always connect the deepest known folder on each side directly,
+//! however far apart they are in the hierarchy — e.g. a dependency from
+//! `A/sub1/file` to `B/sub2/file` is drawn as `A/sub1 -> B/sub2`.
 //!
 //! Assumptions (see README.md for details):
 //!   - Paths recorded inside .d files may contain an unexpanded build
@@ -62,19 +52,12 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum EdgeMode {
-    Flat,
-    Hierarchical,
-}
-
 struct Config {
     root: PathBuf,
     output_path: PathBuf,
     verbose: bool,
     reduce: bool,
     level: usize,
-    edge_mode: EdgeMode,
 }
 
 /// A folder in the tree being turned into graph nodes/clusters.
@@ -131,7 +114,7 @@ fn main() {
     for dep_file in &dep_files {
         match parse_dep_file(dep_file) {
             Ok(pairs) => {
-                let file_edges = edges_from_pairs(&pairs, &tree, config.edge_mode);
+                let file_edges = edges_from_pairs(&pairs, &tree);
                 for edge in file_edges {
                     let is_new = edges.insert(edge.clone());
                     if config.verbose && is_new {
@@ -167,7 +150,7 @@ fn main() {
         }
     }
 
-    let dot = render_dot(&tree, &edges, config.edge_mode);
+    let dot = render_dot(&tree, &edges);
 
     if let Err(e) = fs::write(&config.output_path, &dot) {
         eprintln!(
@@ -192,10 +175,7 @@ fn main() {
 }
 
 fn print_usage() {
-    eprintln!(
-        "Usage: depgraph <input_folder> [output.dot] [--verbose] [--reduce] \
-         [--level N] [--edge-mode flat|hierarchical]"
-    );
+    eprintln!("Usage: depgraph <input_folder> [output.dot] [--verbose] [--reduce] [--level N]");
     eprintln!(
         "  --reduce               Apply a transitive reduction: drop an edge A -> B if B is\n\
          still reachable from A through some other path of edges."
@@ -203,10 +183,6 @@ fn print_usage() {
     eprintln!(
         "  --level N              How many folder levels to break out (default 1). A folder\n\
          with subdirectories is drawn as a cluster containing its children when N allows it."
-    );
-    eprintln!(
-        "  --edge-mode MODE       'flat' (default) connects the deepest known folder on each\n\
-         side directly; 'hierarchical' draws the edge where the two paths first diverge."
     );
 }
 
@@ -242,25 +218,6 @@ fn parse_args() -> Result<Config, String> {
         1
     };
 
-    let edge_mode = if let Some(pos) = args.iter().position(|a| a == "--edge-mode") {
-        if pos + 1 >= args.len() {
-            return Err("Error: --edge-mode requires 'flat' or 'hierarchical'".to_string());
-        }
-        let value = args.remove(pos + 1);
-        args.remove(pos);
-        match value.as_str() {
-            "flat" => EdgeMode::Flat,
-            "hierarchical" => EdgeMode::Hierarchical,
-            other => {
-                return Err(format!(
-                    "Error: --edge-mode expects 'flat' or 'hierarchical', got '{other}'"
-                ))
-            }
-        }
-    } else {
-        EdgeMode::Flat
-    };
-
     if args.is_empty() {
         return Err("Error: missing <input_folder> argument".to_string());
     }
@@ -277,7 +234,6 @@ fn parse_args() -> Result<Config, String> {
         verbose,
         reduce,
         level,
-        edge_mode,
     })
 }
 
@@ -500,77 +456,24 @@ fn classify_chain(raw_path: &str, tree: &[FolderNode]) -> Option<Vec<String>> {
 
 /// Converts the (target, prerequisite) pairs returned by [`parse_dep_file`]
 /// for a single `.d` file into a set of edges, per `mode`.
-fn edges_from_pairs(
-    pairs: &[(String, String)],
-    tree: &[FolderNode],
-    mode: EdgeMode,
-) -> HashSet<(String, String)> {
+/// Converts the (target, prerequisite) pairs returned by [`parse_dep_file`]
+/// for a single `.d` file into a set of edges, connecting the deepest known
+/// folder on each side directly (however far apart they are in the
+/// hierarchy).
+fn edges_from_pairs(pairs: &[(String, String)], tree: &[FolderNode]) -> HashSet<(String, String)> {
     let mut edges = HashSet::new();
     for (target_raw, prereq_raw) in pairs {
         let target_chain = classify_chain(target_raw, tree);
         let prereq_chain = classify_chain(prereq_raw, tree);
         if let (Some(tc), Some(pc)) = (target_chain, prereq_chain) {
-            let edge = match mode {
-                EdgeMode::Flat => {
-                    let tf = tc.last().expect("chain is never empty");
-                    let pf = pc.last().expect("chain is never empty");
-                    if tf != pf {
-                        Some((tf.clone(), pf.clone()))
-                    } else {
-                        None
-                    }
-                }
-                EdgeMode::Hierarchical => hierarchical_edge(&tc, &pc),
-            };
-            if let Some(e) = edge {
-                edges.insert(e);
+            let tf = tc.last().expect("chain is never empty");
+            let pf = pc.last().expect("chain is never empty");
+            if tf != pf {
+                edges.insert((tf.clone(), pf.clone()));
             }
         }
     }
     edges
-}
-
-/// Given the full ancestor chains of a target and a prerequisite, finds
-/// where the two chains first diverge and returns the pair of folders at
-/// that point — i.e. the closest common ancestor's two differing children.
-/// Returns `None` if the chains are identical throughout (same folder on
-/// both sides) or if one chain is entirely a prefix of the other (which
-/// shouldn't occur given how chains are built, but is treated as "no
-/// edge" rather than panicking).
-fn hierarchical_edge(target_chain: &[String], prereq_chain: &[String]) -> Option<(String, String)> {
-    let mut i = 0;
-    while i < target_chain.len() && i < prereq_chain.len() && target_chain[i] == prereq_chain[i] {
-        i += 1;
-    }
-    if i < target_chain.len() && i < prereq_chain.len() {
-        let a = &target_chain[i];
-        let b = &prereq_chain[i];
-        if a != b {
-            return Some((a.clone(), b.clone()));
-        }
-    }
-    None
-}
-
-/// The folder that should textually enclose an edge's declaration in the
-/// rendered dot file: the deepest common ancestor of its two endpoint
-/// path ids, or `None` for the top level if they share no ancestor.
-fn common_ancestor_scope(a: &str, b: &str) -> Option<String> {
-    let a_parts: Vec<&str> = a.split('/').collect();
-    let b_parts: Vec<&str> = b.split('/').collect();
-    let mut common = Vec::new();
-    for (x, y) in a_parts.iter().zip(b_parts.iter()) {
-        if x == y {
-            common.push(*x);
-        } else {
-            break;
-        }
-    }
-    if common.is_empty() {
-        None
-    } else {
-        Some(common.join("/"))
-    }
 }
 
 /// Applies a transitive reduction to a directed edge set: an edge A -> B is
@@ -654,36 +557,16 @@ fn sanitize_id(s: &str) -> String {
         .collect()
 }
 
-/// Groups edges by which folder should textually enclose them in the
-/// rendered dot file. In `Flat` mode every edge is placed at the top
-/// level, since its two endpoints may not share any common ancestor
-/// cluster. In `Hierarchical` mode, by construction, both endpoints of an
-/// edge are siblings directly under [`common_ancestor_scope`].
-fn group_edges_by_scope(
-    edges: &HashSet<(String, String)>,
-    mode: EdgeMode,
-) -> HashMap<Option<String>, Vec<(String, String)>> {
-    let mut map: HashMap<Option<String>, Vec<(String, String)>> = HashMap::new();
-    for (a, b) in edges {
-        let scope = match mode {
-            EdgeMode::Flat => None,
-            EdgeMode::Hierarchical => common_ancestor_scope(a, b),
-        };
-        map.entry(scope).or_default().push((a.clone(), b.clone()));
-    }
-    map
-}
-
 /// Renders the final dot file: nodes and nested subgraph clusters from the
-/// folder tree, then edges placed per [`group_edges_by_scope`], merging any
-/// A<->B pair that exists in both directions into a single red
-/// bidirectional edge instead of two black ones. An edge whose two
-/// endpoints sit under different top-level folders gets `minlen=0` plus
-/// `ltail`/`lhead` pointing at each side's top-level cluster (when that
-/// side is actually exploded into one), so it visually terminates at the
-/// cluster boundary instead of diving to the specific inner node — see
+/// folder tree, then all edges at the top level, merging any A<->B pair
+/// that exists in both directions into a single red bidirectional edge
+/// instead of two black ones. An edge whose two endpoints sit under
+/// different top-level folders gets `minlen=0` plus `ltail`/`lhead`
+/// pointing at each side's top-level cluster (when that side is actually
+/// exploded into one), so it visually terminates at the cluster boundary
+/// instead of diving to the specific inner node — see
 /// [`cross_cluster_attrs`].
-fn render_dot(tree: &[FolderNode], edges: &HashSet<(String, String)>, mode: EdgeMode) -> String {
+fn render_dot(tree: &[FolderNode], edges: &HashSet<(String, String)>) -> String {
     let mut dot = String::new();
     dot.push_str("digraph dependencies {\n");
     dot.push_str("    rankdir=TB;\n");
@@ -691,30 +574,20 @@ fn render_dot(tree: &[FolderNode], edges: &HashSet<(String, String)>, mode: Edge
     dot.push_str("    nodesep=.55;\n");
     dot.push_str("    node [shape=ellipse];\n\n");
 
-    let edges_by_scope = group_edges_by_scope(edges, mode);
     let mut drawn: HashSet<(String, String)> = HashSet::new();
 
     for node in tree {
-        render_folder_node(node, &edges_by_scope, edges, tree, &mut drawn, &mut dot, 1);
+        render_folder_node(node, &mut dot, 1);
     }
 
-    if let Some(top_edges) = edges_by_scope.get(&None) {
-        render_edges(top_edges, edges, tree, &mut drawn, &mut dot, 1);
-    }
+    let edge_list: Vec<(String, String)> = edges.iter().cloned().collect();
+    render_edges(&edge_list, edges, tree, &mut drawn, &mut dot, 1);
 
     dot.push_str("}\n");
     dot
 }
 
-fn render_folder_node(
-    node: &FolderNode,
-    edges_by_scope: &HashMap<Option<String>, Vec<(String, String)>>,
-    all_edges: &HashSet<(String, String)>,
-    tree: &[FolderNode],
-    drawn: &mut HashSet<(String, String)>,
-    dot: &mut String,
-    indent: usize,
-) {
+fn render_folder_node(node: &FolderNode, dot: &mut String, indent: usize) {
     let pad = "    ".repeat(indent);
     if node.children.is_empty() {
         dot.push_str(&format!(
@@ -731,10 +604,7 @@ fn render_folder_node(
     ));
     dot.push_str(&format!("{pad}    label=\"{}\";\n", escape(&node.name)));
     for child in &node.children {
-        render_folder_node(child, edges_by_scope, all_edges, tree, drawn, dot, indent + 1);
-    }
-    if let Some(scoped_edges) = edges_by_scope.get(&Some(node.path_id.clone())) {
-        render_edges(scoped_edges, all_edges, tree, drawn, dot, indent + 1);
+        render_folder_node(child, dot, indent + 1);
     }
     dot.push_str(&format!("{pad}}}\n"));
 }
@@ -924,74 +794,14 @@ mod tests {
     }
 
     #[test]
-    fn hierarchical_edge_diverges_at_top_level() {
-        let target_chain = vec!["A".to_string(), "A/sub1".to_string()];
-        let prereq_chain = vec!["B".to_string(), "B/sub2".to_string()];
-        assert_eq!(
-            hierarchical_edge(&target_chain, &prereq_chain),
-            Some(("A".to_string(), "B".to_string()))
-        );
-    }
-
-    #[test]
-    fn hierarchical_edge_diverges_inside_shared_ancestor() {
-        let target_chain = vec!["A".to_string(), "A/subA1".to_string()];
-        let prereq_chain = vec!["A".to_string(), "A/subA2".to_string()];
-        assert_eq!(
-            hierarchical_edge(&target_chain, &prereq_chain),
-            Some(("A/subA1".to_string(), "A/subA2".to_string()))
-        );
-    }
-
-    #[test]
-    fn hierarchical_edge_none_for_identical_chains() {
-        let chain = vec!["A".to_string(), "A/sub1".to_string()];
-        assert_eq!(hierarchical_edge(&chain, &chain), None);
-    }
-
-    #[test]
-    fn common_ancestor_scope_finds_shared_prefix() {
-        assert_eq!(
-            common_ancestor_scope("A/subA1", "A/subA2"),
-            Some("A".to_string())
-        );
-        assert_eq!(common_ancestor_scope("A", "B"), None);
-    }
-
-    #[test]
-    fn edges_from_pairs_flat_mode_connects_deepest_nodes() {
+    fn edges_from_pairs_connects_deepest_nodes() {
         let tree = sample_tree();
         let pairs = vec![(
             "$(ROOT)/moduleA/subA1/a.o".to_string(),
             "$(ROOT)/moduleB/b.h".to_string(),
         )];
-        let edges = edges_from_pairs(&pairs, &tree, EdgeMode::Flat);
+        let edges = edges_from_pairs(&pairs, &tree);
         assert!(edges.contains(&("moduleA/subA1".to_string(), "moduleB".to_string())));
-    }
-
-    #[test]
-    fn edges_from_pairs_hierarchical_mode_connects_top_level() {
-        let tree = sample_tree();
-        let pairs = vec![(
-            "$(ROOT)/moduleA/subA1/a.o".to_string(),
-            "$(ROOT)/moduleB/b.h".to_string(),
-        )];
-        let edges = edges_from_pairs(&pairs, &tree, EdgeMode::Hierarchical);
-        assert!(edges.contains(&("moduleA".to_string(), "moduleB".to_string())));
-    }
-
-    #[test]
-    fn edges_from_pairs_hierarchical_mode_connects_siblings() {
-        let tree = sample_tree();
-        let pairs = vec![(
-            "$(ROOT)/moduleA/subA1/a.o".to_string(),
-            "$(ROOT)/moduleA/subA2/b.h".to_string(),
-        )];
-        let edges = edges_from_pairs(&pairs, &tree, EdgeMode::Hierarchical);
-        assert!(edges.contains(&(
-            "moduleA/subA1".to_string(),
-            "moduleA/subA2".to_string()
-        )));
     }
 
     #[test]
@@ -1014,7 +824,7 @@ mod tests {
             ),
         ];
 
-        let edges = edges_from_pairs(&pairs, &tree, EdgeMode::Flat);
+        let edges = edges_from_pairs(&pairs, &tree);
         assert_eq!(edges.len(), 1);
         assert!(edges.contains(&("moduleA".to_string(), "moduleB".to_string())));
     }
@@ -1120,7 +930,7 @@ mod tests {
     fn global_settings_include_compound_and_nodesep() {
         let tree = vec![leaf("A", "A")];
         let edges = HashSet::new();
-        let dot = render_dot(&tree, &edges, EdgeMode::Flat);
+        let dot = render_dot(&tree, &edges);
         assert!(dot.contains("compound=true;"));
         assert!(dot.contains("nodesep=.55;"));
     }
@@ -1174,7 +984,7 @@ mod tests {
         edges.insert(("A".to_string(), "B".to_string()));
         edges.insert(("B".to_string(), "A".to_string()));
 
-        let dot = render_dot(&tree, &edges, EdgeMode::Flat);
+        let dot = render_dot(&tree, &edges);
         assert_eq!(dot.matches("color=red").count(), 1);
         assert_eq!(dot.matches("->").count(), 1);
     }
@@ -1185,7 +995,7 @@ mod tests {
         let mut edges = HashSet::new();
         edges.insert(("A".to_string(), "B".to_string()));
 
-        let dot = render_dot(&tree, &edges, EdgeMode::Flat);
+        let dot = render_dot(&tree, &edges);
         assert_eq!(dot.matches("color=red").count(), 0);
         assert!(dot.contains("\"A\" -> \"B\";"));
     }
@@ -1194,7 +1004,7 @@ mod tests {
     fn exploded_folder_renders_as_cluster() {
         let tree = sample_tree();
         let edges = HashSet::new();
-        let dot = render_dot(&tree, &edges, EdgeMode::Flat);
+        let dot = render_dot(&tree, &edges);
         assert!(dot.contains("subgraph cluster_moduleA"));
         assert!(dot.contains("\"moduleA/subA1\" [label=\"subA1\"];"));
         assert!(dot.contains("\"moduleA/subA2\" [label=\"subA2\"];"));
@@ -1205,20 +1015,14 @@ mod tests {
     }
 
     #[test]
-    fn hierarchical_mode_nests_sibling_edge_inside_cluster() {
+    fn sibling_edge_gets_no_cross_cluster_attrs_in_output() {
         let tree = sample_tree();
         let mut edges = HashSet::new();
         edges.insert(("moduleA/subA1".to_string(), "moduleA/subA2".to_string()));
 
-        let dot = render_dot(&tree, &edges, EdgeMode::Hierarchical);
-        let cluster_start = dot.find("subgraph cluster_moduleA").unwrap();
-        let cluster_end = dot[cluster_start..].find('}').unwrap() + cluster_start;
-        let edge_pos = dot
-            .find("\"moduleA/subA1\" -> \"moduleA/subA2\";")
-            .unwrap();
-        assert!(
-            edge_pos > cluster_start && edge_pos < cluster_end,
-            "expected the sibling edge to be nested inside cluster_moduleA"
-        );
+        let dot = render_dot(&tree, &edges);
+        assert!(dot.contains("\"moduleA/subA1\" -> \"moduleA/subA2\";"));
+        assert!(!dot.contains("ltail"));
+        assert!(!dot.contains("lhead"));
     }
 }

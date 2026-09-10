@@ -8,8 +8,9 @@ for breaking the graph out into multiple nested levels.
   subfolders only). A folder with subdirectories is drawn as a Graphviz
   subgraph cluster containing its children, instead of a plain node.
 - **Edge A -> B**: at least one file under `A` depends on (includes) a file
-  under `B`. How exactly this is drawn once there's more than one level is
-  controlled by `--edge-mode` (see below).
+  under `B`. Edges always connect the deepest known folder on each side
+  directly, however far apart they are in the hierarchy — a dependency
+  from `A/sub1/file` to `B/sub2/file` is drawn as `A/sub1 -> B/sub2`.
 - **Red edge**: dependencies exist in both directions between `A` and `B`
   (drawn as a single edge with `dir=both`, not two separate arrows).
 
@@ -30,8 +31,7 @@ The binary will be at `target/release/depgraph`.
 ## Run
 
 ```sh
-depgraph <input_folder> [output.dot] [--verbose] [--reduce] \
-         [--level N] [--edge-mode flat|hierarchical]
+depgraph <input_folder> [output.dot] [--verbose] [--reduce] [--level N]
 ```
 
 - `input_folder`: root of the tree containing your subfolders and `.d` files.
@@ -61,22 +61,6 @@ depgraph <input_folder> [output.dot] [--verbose] [--reduce] \
   inside those, and so on. A dependency on a file that sits directly in an
   exploded (clustered) folder, outside any of its recognized child
   subfolders, is dropped rather than attributed to the folder itself.
-- `--edge-mode flat|hierarchical` (default `flat`): controls where an edge
-  is drawn once folders are broken into multiple levels.
-  - `flat`: connects the deepest known folder on each side directly,
-    however far apart they are in the hierarchy. A dependency from
-    `A/sub1/file` to `B/sub2/file` is drawn as `A/sub1 -> B/sub2`.
-  - `hierarchical`: draws the edge where the two folders' paths first
-    diverge. The same dependency from `A/sub1/file` to `B/sub2/file` is
-    drawn as `A -> B` (they diverge immediately, at the top level). A
-    dependency from `A/sub1/file` to `A/sub2/file` is drawn as
-    `A/sub1 -> A/sub2`, nested inside cluster `A` (they share `A` and only
-    diverge one level down).
-
-  Node/cluster declarations are identical either way — only edge placement
-  changes. Transitive reduction, if requested, applies to the full edge
-  set either mode produces, since every node id is a unique string
-  regardless of which folder level it came from.
 
 Then render it, e.g.:
 
@@ -134,15 +118,15 @@ cargo test
 Unit tests cover: token splitting, escaped spaces, the drive-letter-colon
 edge case, folder-chain classification (leaf folders, descending into an
 exploded folder, dropping a loose file inside one, the `$(ROOT)` case, and
-no-match), the two edge modes (flat and hierarchical, including where each
-places the edge), the common-ancestor scope calculation, multi-line rule
-parsing with continuations, folder-tree building at different `--level`
-values, the red-bidirectional-edge merging logic, cluster rendering, the
-global `compound`/`nodesep` settings, the `ltail`/`lhead`/`minlen`
-cross-cluster edge attributes (including the no-cluster-involved and
-both-sides-exploded cases), and transitive reduction (dropping a direct
-shortcut, dropping a diamond shortcut, keeping a minimal cycle with no
-shortcut, and preserving reachability when a shortcut feeds into a cycle).
+no-match), edge collection (connecting deepest nodes, dropping same-folder
+and unmatched pairs), multi-line rule parsing with continuations,
+folder-tree building at different `--level` values, the
+red-bidirectional-edge merging logic, cluster rendering, the global
+`compound`/`nodesep` settings, the `ltail`/`lhead`/`minlen` cross-cluster
+edge attributes (including the no-cluster-involved and both-sides-exploded
+cases), and transitive reduction (dropping a direct shortcut, dropping a
+diamond shortcut, keeping a minimal cycle with no shortcut, and preserving
+reachability when a shortcut feeds into a cycle).
 
 ## Trying it on a sample tree
 
@@ -169,19 +153,11 @@ EOF
   a same-folder, ignored edge).
 - `depgraph sample out.dot --level 2`: `moduleA` becomes a cluster
   containing `subA1` and `subA2`, `moduleC` becomes a cluster containing
-  `subC1`, `moduleB` stays a plain node.
-  - With `--edge-mode flat` (the default):
-    - inside cluster `moduleA`, a red `subA1 <-> subA2` bidirectional edge;
-    - `moduleB -> moduleA/subA1` (connects the deepest known folders
-      directly);
-    - `moduleC/subC1 -> moduleA/subA2` (likewise — two nested nodes
-      connected directly, even though they're in different clusters).
-  - With `--edge-mode hierarchical`:
-    - the `subA1 <-> subA2` edge is unchanged (it was already the
-      innermost divergence point);
-    - the `moduleB` dependency is drawn as `moduleB -> moduleA` at the
-      top level instead (they diverge immediately, since `moduleB` isn't
-      inside `moduleA`);
-    - likewise `moduleC/subC1 -> moduleA/subA2` becomes `moduleC -> moduleA`
-      at the top level (they diverge immediately too, since neither is an
-      ancestor of the other).
+  `subC1`, `moduleB` stays a plain node. Edges:
+  - inside cluster `moduleA`, a red `subA1 <-> subA2` bidirectional edge
+    (no `ltail`/`lhead`, since both sides share the same top-level folder);
+  - `moduleB -> moduleA/subA1`, with `minlen=0` and
+    `lhead="cluster_moduleA"` (no `ltail`, since `moduleB` isn't exploded);
+  - `moduleC/subC1 -> moduleA/subA2`, with `minlen=0`,
+    `ltail="cluster_moduleC"`, and `lhead="cluster_moduleA"` (both sides
+    exploded, so both attributes are present).

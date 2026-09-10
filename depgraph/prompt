@@ -422,3 +422,26 @@ Cross-cluster edge attributes: new cross_cluster_attrs(a, b, tree) checks each e
 This is computed the same way regardless of edge mode or where the edge is textually placed (top-level vs. nested in a cluster block) — an edge legitimately nested inside a cluster (Hierarchical mode) always shares a top-level ancestor by construction, so it naturally gets no cross-cluster attributes, no special-casing needed.
 Added 5 new tests covering: the global settings appearing, a plain edge getting nothing, a leaf-to-cluster edge getting only lhead, a cluster-to-cluster edge getting both, and an edge fully inside one cluster getting nothing.
 
+
+
+--------------------------------------------------------------------------------
+can you remove the edge_mode option and keep only the flat by default?
+
+Edited 19 files, viewed 9 files, and 9 more tools
+Removed --edge-mode entirely. Summary of what changed:
+
+Deleted the EdgeMode enum, Config.edge_mode, its CLI parsing, and usage text.
+edges_from_pairs no longer takes a mode — it always connects the deepest known folder on each side directly (the old flat behavior).
+Deleted hierarchical_edge and common_ancestor_scope (only existed to support hierarchical mode).
+Simplified render_dot/render_folder_node: since every edge is now rendered at the top level, the edges_by_scope/group_edges_by_scope machinery is gone, and render_folder_node no longer needs to carry tree or edge data through the recursion at all — it just emits nodes/clusters.
+cross_cluster_attrs (the minlen/ltail/lhead logic from last turn) is untouched — it never depended on edge mode.
+Tests: removed the three hierarchical-mode tests and the common_ancestor_scope test; renamed edges_from_pairs_flat_mode_connects_deepest_nodes to edges_from_pairs_connects_deepest_nodes; replaced the old "sibling edge nests inside cluster" test with sibling_edge_gets_no_cross_cluster_attrs_in_output, which checks the edge still renders correctly and gets no ltail/lhead (since both sides share a top-level folder) — accurate now that all edges sit at the top level.
+
+README updated to match: dropped the --edge-mode section and the flat/hierarchical split in the worked example, replaced with a single trace through --level 1 and --level 2 showing the resulting edges and their ltail/lhead/minlen attributes.
+
+
+Main
+RS 
+
+Readme
+Document·MD 
