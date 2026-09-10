@@ -354,3 +354,24 @@ RS
 
 Readme
 Document·MD 
+
+
+--------------------------------------------------------------------------------
+For all nodes inside a sub graph, can you add in dot a label with the name being expunge of the sub graph name? Like the node is called "moduleA/subA1" in the sub graph moduleA (cluster_moduleA), the label would be "subA1".
+
+just now
+￼
+
+￼
+
+￼
+
+Claude responded: Now update the affected tests to match the new node declaration format: Every leaf node declaration now gets an explicit [label=".
+Edited 2 files, ran 2 commands, read a file
+￼
+
+Edited 2 files, ran 2 commands, read a file
+Every leaf node declaration now gets an explicit [label="..."] using node.name (the last path segment) instead of relying on Graphviz's default of displaying the node's id. So "moduleA/subA1" (the id, still needed for edges to reference uniquely) gets label="subA1". Top-level nodes are unaffected visually since their name and path_id are already identical — only nested cluster nodes get shortened.
+
+Updated exploded_folder_renders_as_cluster to check for the new [label="..."] format.
+

@@ -709,7 +709,11 @@ fn render_folder_node(
 ) {
     let pad = "    ".repeat(indent);
     if node.children.is_empty() {
-        dot.push_str(&format!("{pad}\"{}\";\n", escape(&node.path_id)));
+        dot.push_str(&format!(
+            "{pad}\"{}\" [label=\"{}\"];\n",
+            escape(&node.path_id),
+            escape(&node.name)
+        ));
         return;
     }
 
@@ -1070,11 +1074,12 @@ mod tests {
         let edges = HashSet::new();
         let dot = render_dot(&tree, &edges, EdgeMode::Flat);
         assert!(dot.contains("subgraph cluster_moduleA"));
-        assert!(dot.contains("\"moduleA/subA1\";"));
-        assert!(dot.contains("\"moduleA/subA2\";"));
-        // moduleB is a leaf: no cluster for it.
+        assert!(dot.contains("\"moduleA/subA1\" [label=\"subA1\"];"));
+        assert!(dot.contains("\"moduleA/subA2\" [label=\"subA2\"];"));
+        // moduleB is a leaf: no cluster for it, and its label is its own
+        // (unshortened) name since it isn't nested inside anything.
         assert!(!dot.contains("subgraph cluster_moduleB"));
-        assert!(dot.contains("\"moduleB\";"));
+        assert!(dot.contains("\"moduleB\" [label=\"moduleB\"];"));
     }
 
     #[test]
