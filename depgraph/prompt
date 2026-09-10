@@ -184,3 +184,173 @@ Fixed. That was a leftover indentation trick (\ followed by spaces) that isn't v
 
 Main
 RS 
+
+
+
+--------------------------------------------------------------------------------
+I'm thinking to generate sub graphs per levels of sub-directories, controlled by an option. For example --level 1 would generate only the top graph with the first level of sub directory. --level 2 would generate the first level, but each first level folder that have sub directories would be a sub graph, with inside nodes representing the second sub directory levels. Can you suggest a plan for this?
+
+
+Here's a plan for generalizing this from a flat one-level graph to a --level N hierarchical one.
+
+Core idea
+Right now a "node" is just a first-level folder name (a flat string). To support levels, a node needs to become a path of folder names, truncated to at most N components — e.g. at --level 2, a file under moduleA/sub1/foo.c maps to node id "moduleA/sub1", while a file directly under moduleA/foo.c (no subdirectory) maps to "moduleA".
+
+Whether a folder is drawn as a plain node or exploded into a subgraph cluster depends purely on the real directory structure, not on where dependencies point: a first-level folder becomes a cluster_* subgraph (containing its immediate children as nodes) if and only if it has actual subdirectories on disk and --level allows going that deep.
+
+Proposed changes, by piece
+1. Folder-tree discovery (new, replaces the flat first_level_subfolders)
+Walk the input root recursively up to depth N, building a tree:
+
+￼
+
+rust
+struct FolderNode {
+    path_id: String,             // e.g. "moduleA/sub1", used as the dot node/cluster id
+    children: Vec<FolderNode>,   // non-empty only if this folder has subdirs AND depth < N
+}
+This is purely filesystem-driven — independent of any .d file content.
+
+2. classify() becomes tree-aware
+Instead of matching a flat list of names, it walks the FolderNode tree: find the first path component matching a root FolderNode's name (same left-to-right scan as today), then keep descending into children as long as the next path component matches a child name. It stops at whichever node it bottoms out at — either a leaf FolderNode, or a folder whose next component didn't match any known child (see open question below).
+
+3. Edge collection & transitive reduction — unchanged
+edges_from_pairs, transitive_reduction, and the red-bidirectional-edge logic all operate on generic (String, String) node-id pairs already. Since node ids are now just longer strings ("moduleA/sub1" instead of "moduleA"), none of that logic needs to change.
+
+4. render_dot() needs real subgraph support
+
+Leaf FolderNodes render as plain "path_id"; declarations, as today.
+FolderNodes with children render as:
+￼
+
+  subgraph cluster_moduleA {
+      label="moduleA";
+      "moduleA/sub1";
+      "moduleA/sub2";
+  }
+recursively, for arbitrarily deep nesting.
+
+Edges are just written as before ("A/sub1" -> "B") — Graphviz natively draws edges crossing cluster boundaries correctly without any extra syntax, since the edge references real nodes, not the cluster itself.
+Cluster names need sanitizing (/ and other characters aren't valid in a Graphviz ID, so cluster_moduleA_sub1 or similar).
+5. CLI
+Add --level N (default 1, so existing behavior is preserved exactly at the default). Values beyond the tree's actual depth just have no further effect (recursion stops naturally when a folder has no more subdirectories).
+
+One open design question
+When a folder is exploded into a cluster (e.g. moduleA has subdirs sub1 and sub2), what should happen to a dependency on a file that lives directly in moduleA itself, not inside sub1 or sub2?
+
+22 minutes ago
+How should files living directly in an exploded (clustered) folder, outside any of its child subfolders, be represented?
+Drop those dependencies entirely at that level
+Claude responded: That simplifies classify() nicely — a good decision, since it keeps the semantics of "only real leaf folders are dependency nodes" consistent and avoids invent…
+Thought for 3s
+￼
+
+Thought for 3s
+That simplifies classify() nicely — a good decision, since it keeps the semantics of "only real leaf folders are dependency nodes" consistent and avoids inventing a node that mixes two different meanings for the same name.
+
+Here's the finalized plan:
+
+Finalized design
+1. FolderNode tree — built once by walking the filesystem up to --level depth:
+
+￼
+
+rust
+struct FolderNode {
+    path_id: String,             // e.g. "moduleA/sub1"
+    children: Vec<FolderNode>,   // non-empty iff this folder has subdirs AND depth < N
+}
+2. classify(raw_path, tree) -> Option<String>
+
+Scan path components left-to-right for the first one matching a root FolderNode name (as today).
+While the current node has children, look at the next path component:
+matches a child → descend, continue.
+matches no child → this folder is exploded and the file lives directly in it → return None (dropped, per your answer).
+When the current node has no children (a leaf, either because it has no subdirs or because we hit --level), return its path_id.
+3. Edge collection, red bidirectional-edge merge, transitive_reduction — untouched; they already operate on generic string node ids.
+
+4. render_dot() — recursively emit subgraph cluster_<sanitized_id> { label="..."; ... } for any FolderNode with children, plain "path_id"; for leaves, then all edges as today. Graphviz handles edges crossing cluster boundaries natively.
+
+5. CLI — new --level N (default 1; identical output to today at the default).
+
+Implementation order I'd follow
+FolderNode + tree-building function, with a unit test on a small nested fixture.
+Rewrite classify against the tree, with tests for: leaf match, descend-then-match, descend-then-drop (the case we just settled), and the existing $(ROOT)/no-match/filename-not-a-folder cases ported over.
+Update main() wiring: build tree instead of flat nodes list, thread it through edges_from_pairs.
+Extend render_dot for recursive clusters, with a test asserting cluster syntax appears for an exploded folder and not for a leaf one.
+Add --level to parse_args and usage text, update README (including a worked example showing a --level 2 tree with one exploded folder).
+One residual limitation carried forward and slightly amplified: classify's name-matching (rather than true path resolution) means a coincidental name collision between a real child folder and some unrelated ancestor segment in the $(ROOT) prefix gets more likely as depth increases, since there are more names to collide with. Worth keeping in mind but not a blocker.
+
+Want me to go ahead and implement this now?
+
+
+
+--------------------------------------------------------------------------------
+I see two modes of generating the edges.
+A- a flat view as the one you suggested
+
+B- an hierarchical view. inside a subgraph, show only edges at that level. For example if there is a dependency from A/sub1/file to B/sub2/file, this is represented by the first level edge A->B. The edges inside the subgraph would be dependencies A/subA1/file to A/subA2/file, represented by an edge between subA1 and subA2
+
+Thought for 1m 10s
+Good distinction — and it's a genuinely different algorithm, not just a rendering choice. Let me lay out how both modes share a foundation, then how they diverge.
+
+Shared foundation: full ancestor chains
+Instead of classify() returning just the deepest matched node, it should return the whole chain of matched ancestors:
+
+rust
+fn classify_chain(raw_path: &str, tree: &[FolderNode]) -> Option<Vec<String>>
+For A/sub1/subsub1/file.c (with --level 3 and that structure existing), this returns ["A", "A/sub1", "A/sub1/subsub1"]. It still returns None in exactly the cases we already agreed on: no match at all (out of tree), or a folder that's exploded but the file sits directly in it outside any recognized child.
+
+Both modes consume this chain — they just pick different endpoints from it.
+
+Mode A — flat
+Endpoint = the last element of each chain: target_chain.last(), prereq_chain.last(). This is exactly what I described before — deepest-known-node-to-deepest-known-node, regardless of how far apart they are in the tree.
+
+Mode B — hierarchical
+Endpoint = the first point of divergence between the two chains:
+
+Walk both chains together, index by index, while they're equal — this is the common ancestor prefix.
+Where they first differ (or one runs out — see note below), the edge is drawn between target_chain[d] and prereq_chain[d] at that index d.
+If the chains are identical all the way (same finest node on both sides), it's an internal same-node dependency — dropped, same as today's same-folder rule.
+Checking against your two examples:
+
+A/sub1/file → B/sub2/file: chains ["A","A/sub1"] vs ["B","B/sub2"] diverge at index 0 → edge A -> B. ✓.
+A/subA1/file → A/subA2/file: chains ["A","A/subA1"] vs ["A","A/subA2"] diverge at index 1 → edge A/subA1 -> A/subA2, i.e. inside cluster A. ✓.
+(Aside: chains can never be a strict prefix of one another — if A had a child, any file "directly in A" would already have been dropped by the Option-B rule, so this divergence-or-identical dichotomy is exhaustive; no edge case there.)
+
+How this plugs into the rest
+edges_from_pairs just needs a mode parameter and picks Mode A's or Mode B's endpoint-selection logic per pair.
+transitive_reduction and the red bidirectional-edge merge need no changes at all — since every node id is a globally unique path string regardless of which mode produced it, the whole edge set (mixing top-level and deeply-nested edges) is still just one consistent graph to reduce/merge, whether flat or hierarchical.
+Rendering: worth knowing that Graphviz determines cluster membership purely from where nodes are declared, not where edge statements sit in the file — so correctness doesn't require nesting edge statements inside their subgraph cluster_X {} block. I'd still nest them there for readability of the generated .dot source (an A/sub1 -> A/sub2 edge reads more sensibly sitting next to cluster A's node declarations), but it's cosmetic, not required.
+
+
+--------------------------------------------------------------------------------
+That looks correct. Can we implement this with an option to select mode A or mode B?
+
+Thought for 7s
+This is a big enough change that I'll rewrite the file cleanly rather than patch piece by piece. I'll go with the defaults I proposed since you didn't specify: --edge-mode flat|hierarchical (default flat, preserving today's behavior), and I'll nest internal edges inside their cluster block for readability.
+
+Ran 8 commands, viewed 3 files, and 3 more tools
+All three CLI-usage claims in the worked example check out against a manual trace of the algorithm (I walked through each .d file by hand for both level/mode combinations). Let's publish.
+
+Ran a command, read a file
+Implemented. Summary of what changed:
+
+New concepts:
+
+FolderNode — a tree built by build_folder_tree(root, level), walking the filesystem up to --level deep. A folder becomes a cluster (children non-empty) only if it has real subdirectories and --level allows descending further.
+classify_chain() replaces the old flat classify() — returns the whole ancestor chain (e.g. ["moduleA", "moduleA/subA1"]), descending through children as far as they match, dropping (returning None) if a file sits directly in an exploded folder outside any recognized child — per your earlier answer.
+EdgeMode::{Flat, Hierarchical} — edges_from_pairs() now takes a mode and picks the edge endpoint accordingly: last-of-chain for flat, or hierarchical_edge()'s first-divergence-point for hierarchical.
+render_dot() recursively emits nested subgraph cluster_* blocks from the tree, and places edges via group_edges_by_scope() (which reuses common_ancestor_scope() purely from the two id strings — no extra bookkeeping needed).
+Unchanged: transitive_reduction, the red-bidirectional merge logic, and parse_dep_file — all still operate on plain (String, String) pairs regardless of level/mode, exactly as you'd expect.
+
+New flags: --level N (default 1) and --edge-mode flat|hierarchical (default flat) — both backward-compatible with everything built so far.
+
+I added tests for the tree builder, classify_chain's four cases, both edge modes at a divergence and at the top level, common_ancestor_scope, and that clusters/nested edges render where expected — but as always, no Rust toolchain here means I couldn't actually run cargo build/cargo test. This was a substantial rewrite, so please treat it as needing a real compile check before you trust it, more than the smaller diffs earlier in this conversation.
+
+
+Main
+RS 
+
+Readme
+Document·MD 
