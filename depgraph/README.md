@@ -88,7 +88,19 @@ The graph is laid out top-to-bottom (`rankdir=TB`): since edge A -> B means
 "A depends on B", folders with no incoming dependency edges naturally sit
 at the top, with their dependencies below. Nodes are drawn as ovals
 (`shape=ellipse`, Graphviz's default oval shape, which sizes naturally to
-fit each label).
+fit each label). The graph also sets `compound=true` and `nodesep=.55`.
+
+When an edge's two endpoints sit under different top-level folders and at
+least one side is exploded into a cluster, the edge also gets `minlen=0`
+plus `ltail`/`lhead` naming each exploded side's **top-level** cluster
+(even if the actual endpoint is nested deeper than that, at `--level` > 2)
+— with `compound=true`, this makes Graphviz draw the edge stopping at the
+cluster's boundary rather than reaching all the way to the specific inner
+node, which reads more cleanly for cross-folder dependencies. A side that
+isn't itself exploded (a plain top-level leaf) is simply left out of the
+attribute list, since there's no cluster name to give it, and an edge
+whose two endpoints are both plain top-level nodes with no clustering
+involved at all gets none of this — there's no boundary to clip to.
 
 ## Assumptions
 
@@ -125,10 +137,12 @@ exploded folder, dropping a loose file inside one, the `$(ROOT)` case, and
 no-match), the two edge modes (flat and hierarchical, including where each
 places the edge), the common-ancestor scope calculation, multi-line rule
 parsing with continuations, folder-tree building at different `--level`
-values, the red-bidirectional-edge merging logic, cluster rendering, and
-transitive reduction (dropping a direct shortcut, dropping a diamond
-shortcut, keeping a minimal cycle with no shortcut, and preserving
-reachability when a shortcut feeds into a cycle).
+values, the red-bidirectional-edge merging logic, cluster rendering, the
+global `compound`/`nodesep` settings, the `ltail`/`lhead`/`minlen`
+cross-cluster edge attributes (including the no-cluster-involved and
+both-sides-exploded cases), and transitive reduction (dropping a direct
+shortcut, dropping a diamond shortcut, keeping a minimal cycle with no
+shortcut, and preserving reachability when a shortcut feeds into a cycle).
 
 ## Trying it on a sample tree
 

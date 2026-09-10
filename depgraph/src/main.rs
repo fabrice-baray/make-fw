@@ -677,22 +677,29 @@ fn group_edges_by_scope(
 /// Renders the final dot file: nodes and nested subgraph clusters from the
 /// folder tree, then edges placed per [`group_edges_by_scope`], merging any
 /// A<->B pair that exists in both directions into a single red
-/// bidirectional edge instead of two black ones.
+/// bidirectional edge instead of two black ones. An edge whose two
+/// endpoints sit under different top-level folders gets `minlen=0` plus
+/// `ltail`/`lhead` pointing at each side's top-level cluster (when that
+/// side is actually exploded into one), so it visually terminates at the
+/// cluster boundary instead of diving to the specific inner node — see
+/// [`cross_cluster_attrs`].
 fn render_dot(tree: &[FolderNode], edges: &HashSet<(String, String)>, mode: EdgeMode) -> String {
     let mut dot = String::new();
     dot.push_str("digraph dependencies {\n");
     dot.push_str("    rankdir=TB;\n");
+    dot.push_str("    compound=true;\n");
+    dot.push_str("    nodesep=.55;\n");
     dot.push_str("    node [shape=ellipse];\n\n");
 
     let edges_by_scope = group_edges_by_scope(edges, mode);
     let mut drawn: HashSet<(String, String)> = HashSet::new();
 
     for node in tree {
-        render_folder_node(node, &edges_by_scope, edges, &mut drawn, &mut dot, 1);
+        render_folder_node(node, &edges_by_scope, edges, tree, &mut drawn, &mut dot, 1);
     }
 
     if let Some(top_edges) = edges_by_scope.get(&None) {
-        render_edges(top_edges, edges, &mut drawn, &mut dot, 1);
+        render_edges(top_edges, edges, tree, &mut drawn, &mut dot, 1);
     }
 
     dot.push_str("}\n");
@@ -703,6 +710,7 @@ fn render_folder_node(
     node: &FolderNode,
     edges_by_scope: &HashMap<Option<String>, Vec<(String, String)>>,
     all_edges: &HashSet<(String, String)>,
+    tree: &[FolderNode],
     drawn: &mut HashSet<(String, String)>,
     dot: &mut String,
     indent: usize,
@@ -723,17 +731,64 @@ fn render_folder_node(
     ));
     dot.push_str(&format!("{pad}    label=\"{}\";\n", escape(&node.name)));
     for child in &node.children {
-        render_folder_node(child, edges_by_scope, all_edges, drawn, dot, indent + 1);
+        render_folder_node(child, edges_by_scope, all_edges, tree, drawn, dot, indent + 1);
     }
     if let Some(scoped_edges) = edges_by_scope.get(&Some(node.path_id.clone())) {
-        render_edges(scoped_edges, all_edges, drawn, dot, indent + 1);
+        render_edges(scoped_edges, all_edges, tree, drawn, dot, indent + 1);
     }
     dot.push_str(&format!("{pad}}}\n"));
+}
+
+/// The first path component of a node id, e.g. `"moduleA"` for both
+/// `"moduleA"` and `"moduleA/subA1"`.
+fn top_level_name(node_id: &str) -> &str {
+    node_id.split('/').next().unwrap_or(node_id)
+}
+
+/// Whether the named top-level folder is exploded into a cluster (has
+/// children in the tree), and therefore has a `cluster_<name>` that a
+/// `ltail`/`lhead` attribute can legally point to.
+fn is_exploded_top_level(name: &str, tree: &[FolderNode]) -> bool {
+    tree.iter().any(|n| n.name == name && !n.children.is_empty())
+}
+
+/// Extra edge attributes for an edge that crosses between two different
+/// top-level folders where at least one side is exploded into a cluster:
+/// `minlen=0`, plus `ltail`/`lhead` naming each exploded side's top-level
+/// cluster — always the top-level cluster, even if the actual endpoint is
+/// nested deeper (`--level` > 2). Returns `None` when both endpoints
+/// share the same top-level folder (the edge stays inside a single
+/// cluster and doesn't cross anything), or when neither side is actually
+/// a cluster (a plain top-level-to-top-level edge has no boundary to clip
+/// to). A side that isn't itself exploded is simply omitted from the
+/// attribute list, since there's no cluster name to give it.
+fn cross_cluster_attrs(a: &str, b: &str, tree: &[FolderNode]) -> Option<Vec<String>> {
+    let ta = top_level_name(a);
+    let tb = top_level_name(b);
+    if ta == tb {
+        return None;
+    }
+    let ta_exploded = is_exploded_top_level(ta, tree);
+    let tb_exploded = is_exploded_top_level(tb, tree);
+    if !ta_exploded && !tb_exploded {
+        // Neither side is a cluster at all (e.g. plain top-level-to-top-
+        // level edge at --level 1): nothing to clip to a boundary.
+        return None;
+    }
+    let mut attrs = vec!["minlen=0".to_string()];
+    if ta_exploded {
+        attrs.push(format!("ltail=\"cluster_{}\"", sanitize_id(ta)));
+    }
+    if tb_exploded {
+        attrs.push(format!("lhead=\"cluster_{}\"", sanitize_id(tb)));
+    }
+    Some(attrs)
 }
 
 fn render_edges(
     edges: &[(String, String)],
     all_edges: &HashSet<(String, String)>,
+    tree: &[FolderNode],
     drawn: &mut HashSet<(String, String)>,
     dot: &mut String,
     indent: usize,
@@ -747,16 +802,32 @@ fn render_edges(
             continue;
         }
         let reverse_exists = all_edges.contains(&(b.clone(), a.clone()));
+
+        let mut attrs: Vec<String> = Vec::new();
         if reverse_exists {
-            dot.push_str(&format!(
-                "{pad}\"{}\" -> \"{}\" [color=red, dir=both];\n",
-                escape(a),
-                escape(b)
-            ));
+            attrs.push("color=red".to_string());
+            attrs.push("dir=both".to_string());
+        }
+        if let Some(cross_attrs) = cross_cluster_attrs(a, b, tree) {
+            attrs.extend(cross_attrs);
+        }
+        let attr_suffix = if attrs.is_empty() {
+            String::new()
+        } else {
+            format!(" [{}]", attrs.join(", "))
+        };
+
+        dot.push_str(&format!(
+            "{pad}\"{}\" -> \"{}\"{};\n",
+            escape(a),
+            escape(b),
+            attr_suffix
+        ));
+
+        if reverse_exists {
             drawn.insert((a.clone(), b.clone()));
             drawn.insert((b.clone(), a.clone()));
         } else {
-            dot.push_str(&format!("{pad}\"{}\" -> \"{}\";\n", escape(a), escape(b)));
             drawn.insert((a.clone(), b.clone()));
         }
     }
@@ -1043,6 +1114,57 @@ mod tests {
         assert!(module_b.children.is_empty());
 
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn global_settings_include_compound_and_nodesep() {
+        let tree = vec![leaf("A", "A")];
+        let edges = HashSet::new();
+        let dot = render_dot(&tree, &edges, EdgeMode::Flat);
+        assert!(dot.contains("compound=true;"));
+        assert!(dot.contains("nodesep=.55;"));
+    }
+
+    #[test]
+    fn plain_top_level_edge_gets_no_cross_cluster_attrs() {
+        // Neither A nor B is exploded into a cluster, so there's no
+        // boundary to clip the edge to.
+        let tree = vec![leaf("A", "A"), leaf("B", "B")];
+        assert_eq!(cross_cluster_attrs("A", "B", &tree), None);
+    }
+
+    #[test]
+    fn edge_into_exploded_folder_gets_lhead_only() {
+        // "moduleB" is a plain leaf (no ltail possible); "moduleA" is
+        // exploded, so only lhead is added, alongside minlen=0.
+        let tree = sample_tree();
+        let attrs = cross_cluster_attrs("moduleB", "moduleA/subA1", &tree).unwrap();
+        assert!(attrs.contains(&"minlen=0".to_string()));
+        assert!(attrs.contains(&"lhead=\"cluster_moduleA\"".to_string()));
+        assert!(!attrs.iter().any(|a| a.starts_with("ltail")));
+    }
+
+    #[test]
+    fn edge_between_two_exploded_folders_gets_both_ltail_and_lhead() {
+        let mut tree = sample_tree();
+        tree.push(FolderNode {
+            name: "moduleC".to_string(),
+            path_id: "moduleC".to_string(),
+            children: vec![leaf("subC1", "moduleC/subC1")],
+        });
+        let attrs = cross_cluster_attrs("moduleC/subC1", "moduleA/subA2", &tree).unwrap();
+        assert!(attrs.contains(&"minlen=0".to_string()));
+        assert!(attrs.contains(&"ltail=\"cluster_moduleC\"".to_string()));
+        assert!(attrs.contains(&"lhead=\"cluster_moduleA\"".to_string()));
+    }
+
+    #[test]
+    fn edge_inside_same_top_level_folder_gets_no_cross_cluster_attrs() {
+        let tree = sample_tree();
+        assert_eq!(
+            cross_cluster_attrs("moduleA/subA1", "moduleA/subA2", &tree),
+            None
+        );
     }
 
     #[test]

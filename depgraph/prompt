@@ -388,3 +388,37 @@ Level 2, hierarchical: becomes moduleC -> moduleA at the top level, since neithe
 
 Readme
 Document·MD 
+
+
+--------------------------------------------------------------------------------
+in the dot digraph global setting, can you add those settings:
+    compound=true
+    nodesep=.55
+
+and when an edge is not inside a single cluster, when it crosses clusters, can those settings to the edge: [minlen=0 ltail="" lhead=""]. ltail and lhead values will be the cluster names at the highest level of hierarchy.
+
+8 minutes ago
+￼
+
+￼
+
+￼
+
+Claude responded: Now let's make all the edits: global settings, threading tree through, and the new attribute logic.
+Viewed 2 files, edited 2 files
+￼
+
+Viewed 2 files, edited 2 files
+Now update the existing tests that call render_dot/check exact edge-line text, since the output format for non-attributed edges changed slightly (from "A" -> "B"; — unchanged actually, since empty attrs produce no suffix) and the red-edge attribute string format changed (color=red, dir=both instead of color=red, dir=both — same wording, just built dynamically now). Let's check the affected tests:
+
+Edited 5 files, ran 4 commands, read a file
+￼
+
+Edited 5 files, ran 4 commands, read a file
+Done. Summary:
+
+Global settings: render_dot now emits compound=true; and nodesep=.55; alongside the existing rankdir=TB;.
+Cross-cluster edge attributes: new cross_cluster_attrs(a, b, tree) checks each edge's two endpoints by their top-level folder name (top_level_name, always the first path segment, regardless of how deep --level nests things). If they share the same top-level folder, nothing is added — the edge stays inside one cluster. If they differ, minlen=0 is added, plus ltail="cluster_<top-level-A>" / lhead="cluster_<top-level-B>" for whichever side(s) are actually exploded into a cluster. If neither side is exploded (plain top-level-to-top-level edge, e.g. at default --level 1), nothing is added at all — there's no cluster boundary to clip to.
+This is computed the same way regardless of edge mode or where the edge is textually placed (top-level vs. nested in a cluster block) — an edge legitimately nested inside a cluster (Hierarchical mode) always shares a top-level ancestor by construction, so it naturally gets no cross-cluster attributes, no special-casing needed.
+Added 5 new tests covering: the global settings appearing, a plain edge getting nothing, a leaf-to-cluster edge getting only lhead, a cluster-to-cluster edge getting both, and an edge fully inside one cluster getting nothing.
+
