@@ -375,3 +375,16 @@ Every leaf node declaration now gets an explicit [label="..."] using node.name (
 
 Updated exploded_folder_renders_as_cluster to check for the new [label="..."] format.
 
+
+--------------------------------------------------------------------------------
+in the example, can you add a moduleC, with a sub folder subC1, and a dependency between a file from subC1 to a file of moduleA/subA2?
+
+Edited a file, ran a command, read a file
+Added moduleC/subC1 with subC1/c.d depending on moduleA/subA2/a.h, and traced through all three scenarios by hand:
+
+Level 1: collapses to moduleC -> moduleA (plain, alongside the existing moduleB -> moduleA).
+Level 2, flat: moduleC/subC1 -> moduleA/subA2 — a direct edge between two nested nodes in different clusters.
+Level 2, hierarchical: becomes moduleC -> moduleA at the top level, since neither folder is an ancestor of the other — they diverge immediately, just like the moduleB case.
+
+Readme
+Document·MD 

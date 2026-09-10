@@ -133,7 +133,7 @@ reachability when a shortcut feeds into a cycle).
 ## Trying it on a sample tree
 
 ```sh
-mkdir -p sample/moduleA/subA1 sample/moduleA/subA2 sample/moduleB
+mkdir -p sample/moduleA/subA1 sample/moduleA/subA2 sample/moduleB sample/moduleC/subC1
 cat > sample/moduleA/subA1/a.d <<'EOF'
 $(ROOT)/sample/moduleA/subA1/a.o: $(ROOT)/sample/moduleA/subA1/a.c $(ROOT)/sample/moduleA/subA2/a.h
 EOF
@@ -143,19 +143,31 @@ EOF
 cat > sample/moduleB/b.d <<'EOF'
 $(ROOT)/sample/moduleB/b.o: $(ROOT)/sample/moduleB/b.c $(ROOT)/sample/moduleA/subA1/a.h
 EOF
+cat > sample/moduleC/subC1/c.d <<'EOF'
+$(ROOT)/sample/moduleC/subC1/c.o: $(ROOT)/sample/moduleC/subC1/c.c $(ROOT)/sample/moduleA/subA2/a.h
+EOF
 ```
 
-- `depgraph sample` (default `--level 1`): two nodes, `moduleA` and
-  `moduleB`, with a plain edge `moduleB -> moduleA` (the subA1/subA2 split
+- `depgraph sample` (default `--level 1`): three nodes, `moduleA`,
+  `moduleB`, `moduleC`. Edges: `moduleB -> moduleA` and
+  `moduleC -> moduleA` (both plain black — the subA1/subA2/subC1 split
   isn't visible at level 1, and the subA1<->subA2 dependency collapses to
   a same-folder, ignored edge).
 - `depgraph sample out.dot --level 2`: `moduleA` becomes a cluster
-  containing `subA1` and `subA2`, `moduleB` stays a plain node.
-  - With `--edge-mode flat` (the default): `moduleB -> moduleA/subA1`
-    (connects the deepest known folders directly), and inside cluster
-    `moduleA`, a red `subA1 <-> subA2` bidirectional edge.
-  - With `--edge-mode hierarchical`: the `moduleB` dependency is drawn as
-    `moduleB -> moduleA` at the top level instead (they diverge
-    immediately, since `moduleB` isn't inside `moduleA`), while the
-    `subA1 <-> subA2` edge is unchanged (it was already the innermost
-    divergence point).
+  containing `subA1` and `subA2`, `moduleC` becomes a cluster containing
+  `subC1`, `moduleB` stays a plain node.
+  - With `--edge-mode flat` (the default):
+    - inside cluster `moduleA`, a red `subA1 <-> subA2` bidirectional edge;
+    - `moduleB -> moduleA/subA1` (connects the deepest known folders
+      directly);
+    - `moduleC/subC1 -> moduleA/subA2` (likewise — two nested nodes
+      connected directly, even though they're in different clusters).
+  - With `--edge-mode hierarchical`:
+    - the `subA1 <-> subA2` edge is unchanged (it was already the
+      innermost divergence point);
+    - the `moduleB` dependency is drawn as `moduleB -> moduleA` at the
+      top level instead (they diverge immediately, since `moduleB` isn't
+      inside `moduleA`);
+    - likewise `moduleC/subC1 -> moduleA/subA2` becomes `moduleC -> moduleA`
+      at the top level (they diverge immediately too, since neither is an
+      ancestor of the other).
