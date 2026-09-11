@@ -65,6 +65,8 @@ depgraph <input_folder> [output.dot] [--verbose] [--reduce] [--level N]
   shallower level disappear. When this happens, the folder gets an extra
   node for itself, inside its own cluster, so the edge has something
   concrete to point to.
+- `--help` / `-h`: print this usage message and exit — the same message
+  shown (alongside an error) when the input folder argument is missing.
 
 Then render it, e.g.:
 

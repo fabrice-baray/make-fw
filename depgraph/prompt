@@ -478,3 +478,17 @@ RS
 
 Readme
 Document·MD 
+
+
+--------------------------------------------------------------------------------
+can you add a --help argument to print the same as we pass no argument?
+
+2 minutes ago
+
+Claude responded: Now let's add the --help/-h check before parseargs() runs: Let me match this more literally — reproduce the exact same output (including the "missing inputfold…
+Edited 7 files, viewed 6 files, and 7 more tools
+
+Edited 7 files, viewed 6 files, and 7 more tools
+Added --help/-h: checked via a small testable wants_help(args) helper, before argument parsing even runs (so it works regardless of what else is on the command line, and doesn't get tangled up with the "missing input folder" error path). It calls the exact same print_usage() used in the no-argument error case, and exits with code 0 (since it's a deliberate request, not an error) — the usage text itself is now identical to what you'd see with no arguments, it's just not prefixed with an Error: line in this case.
+
+Added wants_help_detects_long_and_short_flag covering both flags, a flag appearing after other arguments, and the negative cases.

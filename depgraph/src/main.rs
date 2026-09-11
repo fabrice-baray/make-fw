@@ -73,7 +73,18 @@ struct FolderNode {
     children: Vec<FolderNode>,
 }
 
+/// Whether the raw CLI arguments (excluding the program name) request help.
+fn wants_help(args: &[String]) -> bool {
+    args.iter().any(|a| a == "--help" || a == "-h")
+}
+
 fn main() {
+    let raw_args: Vec<String> = env::args().skip(1).collect();
+    if wants_help(&raw_args) {
+        print_usage();
+        process::exit(0);
+    }
+
     let config = match parse_args() {
         Ok(c) => c,
         Err(msg) => {
@@ -184,6 +195,7 @@ fn print_usage() {
         "  --level N              How many folder levels to break out (default 1). A folder\n\
          with subdirectories is drawn as a cluster containing its children when N allows it."
     );
+    eprintln!("  --help, -h             Show this usage message and exit.");
 }
 
 fn parse_args() -> Result<Config, String> {
@@ -756,6 +768,19 @@ mod tests {
             },
             leaf("moduleB", "moduleB"),
         ]
+    }
+
+    #[test]
+    fn wants_help_detects_long_and_short_flag() {
+        assert!(wants_help(&["--help".to_string()]));
+        assert!(wants_help(&["-h".to_string()]));
+        assert!(wants_help(&[
+            "myproj".to_string(),
+            "out.dot".to_string(),
+            "--help".to_string()
+        ]));
+        assert!(!wants_help(&["myproj".to_string(), "out.dot".to_string()]));
+        assert!(!wants_help(&[]));
     }
 
     #[test]
