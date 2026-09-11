@@ -406,11 +406,16 @@ fn split_make_tokens(s: &str) -> Vec<String> {
 /// matching by name is sufficient and avoids needing the variable's actual
 /// value at all.
 ///
-/// Returns `None` if no known top-level folder name appears at all, or if
-/// descent stops at a folder that has children (it's rendered as a
-/// cluster) but the next path component doesn't match any of them — i.e.
-/// the file lives directly in that folder, outside any recognized child,
-/// which is dropped rather than attributed to the folder itself.
+/// Returns `None` only if no known top-level folder name appears in the
+/// path at all (it's outside the tree entirely). If descent reaches a
+/// folder that has children (it's rendered as a cluster) but the next path
+/// component doesn't match any of them — i.e. the file lives directly in
+/// that folder, outside any recognized child — the chain simply stops
+/// there rather than being dropped: increasing `--level` to explode a
+/// folder into a cluster must never make dependencies that were visible at
+/// a shallower level disappear. [`render_folder_node`] adds an explicit
+/// node for the folder itself, inside its own cluster, whenever an edge
+/// actually needs to reference it this way.
 fn classify_chain(raw_path: &str, tree: &[FolderNode]) -> Option<Vec<String>> {
     let components: Vec<&str> = raw_path
         .split(['/', '\\'])
@@ -447,15 +452,18 @@ fn classify_chain(raw_path: &str, tree: &[FolderNode]) -> Option<Vec<String>> {
                     chain.push(current.path_id.clone());
                     next_index += 1;
                 }
-                None => return None, // lives directly in an exploded folder: dropped
+                // Lives directly in this exploded folder, in a subfolder
+                // we didn't recognize: attribute it to the folder itself
+                // rather than losing the dependency.
+                None => return Some(chain),
             },
-            None => return None, // ran out of components before reaching a leaf: dropped
+            // Ran out of components before reaching a leaf: same as above,
+            // attribute it to the current (exploded) folder itself.
+            None => return Some(chain),
         }
     }
 }
 
-/// Converts the (target, prerequisite) pairs returned by [`parse_dep_file`]
-/// for a single `.d` file into a set of edges, per `mode`.
 /// Converts the (target, prerequisite) pairs returned by [`parse_dep_file`]
 /// for a single `.d` file into a set of edges, connecting the deepest known
 /// folder on each side directly (however far apart they are in the
@@ -565,7 +573,11 @@ fn sanitize_id(s: &str) -> String {
 /// pointing at each side's top-level cluster (when that side is actually
 /// exploded into one), so it visually terminates at the cluster boundary
 /// instead of diving to the specific inner node — see
-/// [`cross_cluster_attrs`].
+/// [`cross_cluster_attrs`]. An exploded folder that some edge references
+/// directly (a file living in it outside any recognized child — see
+/// [`classify_chain`]) gets an extra node for itself, inside its own
+/// cluster, so that edge has something concrete to point to instead of
+/// being lost.
 fn render_dot(tree: &[FolderNode], edges: &HashSet<(String, String)>) -> String {
     let mut dot = String::new();
     dot.push_str("digraph dependencies {\n");
@@ -575,9 +587,13 @@ fn render_dot(tree: &[FolderNode], edges: &HashSet<(String, String)>) -> String 
     dot.push_str("    node [shape=ellipse];\n\n");
 
     let mut drawn: HashSet<(String, String)> = HashSet::new();
+    let referenced: HashSet<&str> = edges
+        .iter()
+        .flat_map(|(a, b)| [a.as_str(), b.as_str()])
+        .collect();
 
     for node in tree {
-        render_folder_node(node, &mut dot, 1);
+        render_folder_node(node, &referenced, &mut dot, 1);
     }
 
     let edge_list: Vec<(String, String)> = edges.iter().cloned().collect();
@@ -587,7 +603,7 @@ fn render_dot(tree: &[FolderNode], edges: &HashSet<(String, String)>) -> String 
     dot
 }
 
-fn render_folder_node(node: &FolderNode, dot: &mut String, indent: usize) {
+fn render_folder_node(node: &FolderNode, referenced: &HashSet<&str>, dot: &mut String, indent: usize) {
     let pad = "    ".repeat(indent);
     if node.children.is_empty() {
         dot.push_str(&format!(
@@ -603,8 +619,18 @@ fn render_folder_node(node: &FolderNode, dot: &mut String, indent: usize) {
         sanitize_id(&node.path_id)
     ));
     dot.push_str(&format!("{pad}    label=\"{}\";\n", escape(&node.name)));
+    if referenced.contains(node.path_id.as_str()) {
+        // Some file lives directly in this folder (outside any recognized
+        // child) and takes part in a dependency; give it its own node
+        // inside the cluster instead of losing that edge.
+        dot.push_str(&format!(
+            "{pad}    \"{}\" [label=\"{}\"];\n",
+            escape(&node.path_id),
+            escape(&node.name)
+        ));
+    }
     for child in &node.children {
-        render_folder_node(child, dot, indent + 1);
+        render_folder_node(child, referenced, dot, indent + 1);
     }
     dot.push_str(&format!("{pad}}}\n"));
 }
@@ -769,11 +795,16 @@ mod tests {
     }
 
     #[test]
-    fn classify_chain_drops_loose_file_in_exploded_folder() {
+    fn classify_chain_falls_back_to_folder_itself_for_loose_file() {
         // moduleA is exploded (has children), but this file sits directly
-        // in moduleA, not in subA1 or subA2.
+        // in moduleA, not in subA1 or subA2. Increasing --level to explode
+        // moduleA must not make this dependency disappear: it falls back
+        // to moduleA itself instead of being dropped.
         let tree = sample_tree();
-        assert_eq!(classify_chain("$(ROOT)/moduleA/loose.c", &tree), None);
+        assert_eq!(
+            classify_chain("$(ROOT)/moduleA/loose.c", &tree),
+            Some(vec!["moduleA".to_string()])
+        );
     }
 
     #[test]
@@ -1024,5 +1055,35 @@ mod tests {
         assert!(dot.contains("\"moduleA/subA1\" -> \"moduleA/subA2\";"));
         assert!(!dot.contains("ltail"));
         assert!(!dot.contains("lhead"));
+    }
+
+    #[test]
+    fn exploded_folder_gets_self_node_when_referenced_by_an_edge() {
+        // A loose file directly in moduleA (outside subA1/subA2) that
+        // depends on moduleB must not disappear: moduleA needs a node for
+        // itself, inside its own cluster, to be a valid edge endpoint.
+        let tree = sample_tree();
+        let mut edges = HashSet::new();
+        edges.insert(("moduleA".to_string(), "moduleB".to_string()));
+
+        let dot = render_dot(&tree, &edges);
+        let cluster_start = dot.find("subgraph cluster_moduleA").unwrap();
+        let cluster_end = dot[cluster_start..].find('}').unwrap() + cluster_start;
+        let self_node_pos = dot.find("\"moduleA\" [label=\"moduleA\"];").unwrap();
+        assert!(
+            self_node_pos > cluster_start && self_node_pos < cluster_end,
+            "expected moduleA's self node to be declared inside its own cluster"
+        );
+        assert!(dot.contains("\"moduleA\" -> \"moduleB\""));
+    }
+
+    #[test]
+    fn exploded_folder_gets_no_self_node_when_not_referenced() {
+        // Without any edge pointing at moduleA itself, no self node
+        // should be added — only its real children.
+        let tree = sample_tree();
+        let edges = HashSet::new();
+        let dot = render_dot(&tree, &edges);
+        assert!(!dot.contains("\"moduleA\" [label=\"moduleA\"];"));
     }
 }

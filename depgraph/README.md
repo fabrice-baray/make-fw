@@ -60,7 +60,11 @@ depgraph <input_folder> [output.dot] [--verbose] [--reduce] [--level N]
   immediate children as nodes; `--level 3` allows one more level of nesting
   inside those, and so on. A dependency on a file that sits directly in an
   exploded (clustered) folder, outside any of its recognized child
-  subfolders, is dropped rather than attributed to the folder itself.
+  subfolders, falls back to the folder itself rather than being dropped —
+  increasing `--level` must never make a dependency that was visible at a
+  shallower level disappear. When this happens, the folder gets an extra
+  node for itself, inside its own cluster, so the edge has something
+  concrete to point to.
 
 Then render it, e.g.:
 
@@ -117,15 +121,17 @@ cargo test
 
 Unit tests cover: token splitting, escaped spaces, the drive-letter-colon
 edge case, folder-chain classification (leaf folders, descending into an
-exploded folder, dropping a loose file inside one, the `$(ROOT)` case, and
-no-match), edge collection (connecting deepest nodes, dropping same-folder
-and unmatched pairs), multi-line rule parsing with continuations,
-folder-tree building at different `--level` values, the
-red-bidirectional-edge merging logic, cluster rendering, the global
-`compound`/`nodesep` settings, the `ltail`/`lhead`/`minlen` cross-cluster
-edge attributes (including the no-cluster-involved and both-sides-exploded
-cases), and transitive reduction (dropping a direct shortcut, dropping a
-diamond shortcut, keeping a minimal cycle with no shortcut, and preserving
+exploded folder, falling back to the folder itself for a loose file inside
+one, the `$(ROOT)` case, and no-match), edge collection (connecting
+deepest nodes, dropping same-folder and unmatched pairs), multi-line rule
+parsing with continuations, folder-tree building at different `--level`
+values, the red-bidirectional-edge merging logic, cluster rendering, the
+self-node fallback for an exploded folder referenced directly by an edge
+(present when needed, absent when not), the global `compound`/`nodesep`
+settings, the `ltail`/`lhead`/`minlen` cross-cluster edge attributes
+(including the no-cluster-involved and both-sides-exploded cases), and
+transitive reduction (dropping a direct shortcut, dropping a diamond
+shortcut, keeping a minimal cycle with no shortcut, and preserving
 reachability when a shortcut feeds into a cycle).
 
 ## Trying it on a sample tree
@@ -138,6 +144,9 @@ EOF
 cat > sample/moduleA/subA2/a2.d <<'EOF'
 $(ROOT)/sample/moduleA/subA2/a2.o: $(ROOT)/sample/moduleA/subA2/a2.c $(ROOT)/sample/moduleA/subA1/a.h
 EOF
+cat > sample/moduleA/a_root.d <<'EOF'
+$(ROOT)/sample/moduleA/a_root.o: $(ROOT)/sample/moduleA/a_root.c $(ROOT)/sample/moduleB/b.h
+EOF
 cat > sample/moduleB/b.d <<'EOF'
 $(ROOT)/sample/moduleB/b.o: $(ROOT)/sample/moduleB/b.c $(ROOT)/sample/moduleA/subA1/a.h
 EOF
@@ -146,11 +155,16 @@ $(ROOT)/sample/moduleC/subC1/c.o: $(ROOT)/sample/moduleC/subC1/c.c $(ROOT)/sampl
 EOF
 ```
 
+`moduleA/a_root.d` is a file living directly in `moduleA` itself (outside
+`subA1`/`subA2`), depending on `moduleB` — this is what exercises the
+folder-itself fallback described above.
+
 - `depgraph sample` (default `--level 1`): three nodes, `moduleA`,
-  `moduleB`, `moduleC`. Edges: `moduleB -> moduleA` and
-  `moduleC -> moduleA` (both plain black — the subA1/subA2/subC1 split
-  isn't visible at level 1, and the subA1<->subA2 dependency collapses to
-  a same-folder, ignored edge).
+  `moduleB`, `moduleC`. Edges: a red `moduleA <-> moduleB` bidirectional
+  edge (moduleB depends on moduleA via `subA1/a.h`, and `a_root.d` gives
+  the reverse direction), and a plain `moduleC -> moduleA`. The
+  subA1/subA2/subC1 split isn't visible at level 1, and the
+  subA1<->subA2 dependency collapses to a same-folder, ignored edge.
 - `depgraph sample out.dot --level 2`: `moduleA` becomes a cluster
   containing `subA1` and `subA2`, `moduleC` becomes a cluster containing
   `subC1`, `moduleB` stays a plain node. Edges:
@@ -160,4 +174,11 @@ EOF
     `lhead="cluster_moduleA"` (no `ltail`, since `moduleB` isn't exploded);
   - `moduleC/subC1 -> moduleA/subA2`, with `minlen=0`,
     `ltail="cluster_moduleC"`, and `lhead="cluster_moduleA"` (both sides
-    exploded, so both attributes are present).
+    exploded, so both attributes are present);
+  - `moduleA -> moduleB`, from `a_root.d`'s loose file — `moduleA` gets an
+    extra node for itself, inside its own cluster, so this dependency
+    (visible at `--level 1`) isn't lost just because `moduleA` got
+    exploded. It has `minlen=0` and `ltail="cluster_moduleA"` (no `lhead`,
+    since `moduleB` isn't exploded) — note this is a *different* edge from
+    `moduleB -> moduleA/subA1` above, not a bidirectional pair with it,
+    since the endpoints (`moduleA` vs `moduleA/subA1`) are different nodes.

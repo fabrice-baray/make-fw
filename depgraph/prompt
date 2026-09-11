@@ -445,3 +445,36 @@ RS
 
 Readme
 Document·MD 
+
+
+--------------------------------------------------------------------------------
+When level is n>1, it doesn't mean we should ignore the edges of levels <n
+
+Thought for 1m 43s
+Good catch — that's a real bug. Let me trace through the scenario: when a top-level folder gets exploded into a cluster (has children), any file living directly in that folder (not inside a recognized child subfolder) currently gets dropped entirely by classify_chain. That means a dependency that would have produced a perfectly valid edge at --level 1 (e.g. moduleA -> moduleB) silently disappears the moment moduleA gets exploded at --level 2, purely because of an implementation detail — that's exactly the kind of "increasing detail loses coarser information" bug you're flagging.
+
+Fix: instead of dropping when descent fails, stop the chain at the current (exploded) folder itself — same as a leaf. That folder then needs an actual node inside its own cluster to be a valid edge endpoint, so I'll add one whenever it's actually needed.
+
+Viewed a file main.rs
+please resume
+
+Viewed 2 files, edited 2 files
+Now let's find and update the test that checks the old "dropped" behavior, and other call sites of render_folder_node:
+
+Ran a command
+please resume
+
+Edited 6 files, viewed 4 files, and 5 more tools
+Fixed. Summary:
+
+classify_chain: both places that previously return None when descent into an exploded folder fails (file lives directly in it, or ran out of path components) now return Some(chain) instead — the chain simply stops at that folder, exactly like a leaf. A dependency that would exist at --level 1 can no longer vanish just because a folder gets exploded at a higher --level.
+render_dot/render_folder_node: since an edge can now legitimately terminate at an exploded folder's own id (not just its children), I added a fallback — a node for the folder itself, labeled with its own name, declared inside its own cluster — but only when some edge actually references it (checked via a referenced: HashSet<&str> built from the edge set up front), so clusters stay uncluttered when it's not needed.
+The existing cross_cluster_attrs/ltail/lhead logic needed no changes — it already worked purely off node-id strings, so it naturally treats the folder's self-node as "inside its own cluster" correctly.
+Updated the test that previously asserted the drop (classify_chain_falls_back_to_folder_itself_for_loose_file), and added two new ones for the self-node's presence/absence in rendering. Extended the README's worked example with a moduleA/a_root.d file (living directly in moduleA, not in any subfolder) to make the fix concrete — I traced it by hand: at --level 1 it now correctly produces a red moduleA <-> moduleB bidirectional edge, and at --level 2 that same dependency survives as moduleA -> moduleB via the new self-node, distinct from the unrelated moduleB -> moduleA/subA1 edge.
+
+
+Main
+RS 
+
+Readme
+Document·MD 
